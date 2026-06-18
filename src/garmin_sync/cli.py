@@ -1,3 +1,7 @@
+"""
+Command-line interface entrypoint for Garmin Sync.
+"""
+
 import os
 import sys
 import argparse
@@ -6,10 +10,12 @@ from garmin_sync.auth import get_client
 from garmin_sync.commands.push import push_workout, parse_workout
 from garmin_sync.commands.fetch import fetch_and_print_activities
 
-def setup_logging():
+def setup_logging() -> None:
+    """Configure basic logging for the application."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-def main():
+def main() -> None:
+    """Execute the main CLI command logic."""
     setup_logging()
     parser = argparse.ArgumentParser(description="Sync Fitbod JSON to Garmin Connect, or fetch Garmin activities.")
     parser.add_argument("json_string", nargs="?", help="JSON string of the workout or path to JSON file")
