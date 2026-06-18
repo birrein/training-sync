@@ -1,3 +1,6 @@
+"""
+Exercise mapping module for translating Fitbod exercise names to Garmin exercise categories.
+"""
 import os
 import json
 import logging
@@ -15,7 +18,15 @@ FITBOD_CUSTOM_MAP = {
     "TRICEP EXTENSION": {"category": "TRICEPS_EXTENSION", "name": "TRICEPS_PRESSDOWN"},
 }
 
+DEFAULT_PROBABILITY = 100.0
+
 def load_garmin_dict() -> dict:
+    """
+    Load the dictionary of Garmin exercises from a JSON file.
+
+    Returns:
+        dict: A dictionary mapping exercise names to their Garmin categories and sub-names.
+    """
     dict_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'garmin_exercises.json')
     try:
         with open(dict_path, 'r', encoding='utf-8') as f:
@@ -29,6 +40,16 @@ def load_garmin_dict() -> dict:
         return {}
 
 def get_mapping(fitbod_name: str, garmin_dict: dict) -> dict:
+    """
+    Get the corresponding Garmin exercise mapping for a given Fitbod exercise name.
+
+    Args:
+        fitbod_name (str): The name of the exercise from Fitbod.
+        garmin_dict (dict): The loaded dictionary of Garmin exercises.
+
+    Returns:
+        dict: A dictionary containing the Garmin 'category', 'name', and 'probability'.
+    """
     name_upper = fitbod_name.upper()
     if name_upper in FITBOD_CUSTOM_MAP:
         mapping = dict(FITBOD_CUSTOM_MAP[name_upper])
@@ -38,5 +59,5 @@ def get_mapping(fitbod_name: str, garmin_dict: dict) -> dict:
         mapping = {"category": "UNKNOWN", "name": None}
         logger.warning(f"Exercise '{name_upper}' not found. Sent as UNKNOWN.")
     
-    mapping["probability"] = 100.0
+    mapping["probability"] = DEFAULT_PROBABILITY
     return mapping
