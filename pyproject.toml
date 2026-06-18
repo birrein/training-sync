@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "garmin-sync"
+version = "0.1.0"
+description = "Bidirectional Garmin Connect sync for strength and running"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "garminconnect",
+    "requests"
+]
+
+[project.scripts]
+garmin-sync = "garmin_sync.cli:main"
