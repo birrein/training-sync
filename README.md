@@ -14,9 +14,9 @@ Currently supports:
    python3 -m venv venv
    source venv/bin/activate
    ```
-3. Install the required dependencies:
+3. Install the package in editable mode (this installs dependencies and registers the CLI):
    ```bash
-   pip install -r requirements.txt
+   pip install -e .
    ```
 
 ## Authentication
@@ -34,22 +34,22 @@ You can sync a JSON payload either by passing the string directly or by providin
 
 **Using a File:**
 ```bash
-python sync.py example_workout.json
+garmin-sync example_workout.json
 ```
 
 **Using an Inline String:**
 ```bash
-python sync.py '{"date": "2026-06-15", "title": "Upper Body Day", "exercises": [{"name": "Barbell Bench Press", "sets": [{"reps": 10, "weight": 20}]}]}'
+garmin-sync '{"date": "2026-06-15", "title": "Upper Body Day", "exercises": [{"name": "Barbell Bench Press", "sets": [{"reps": 10, "weight": 20}]}]}'
 ```
 
-The script uses a massive dictionary (`garmin_exercises.json`) containing the exact Garmin Enum IDs to map your generic exercise names (e.g. "Barbell Bench Press") accurately to the Garmin platform. If a mapping is missing or incorrect, you can edit the `FITBOD_CUSTOM_MAP` inside `sync.py`.
+The script uses a massive dictionary (`garmin_exercises.json`) containing the exact Garmin Enum IDs to map your generic exercise names (e.g. "Barbell Bench Press") accurately to the Garmin platform. If a mapping is missing or incorrect, you can edit the `FITBOD_CUSTOM_MAP` inside `src/garmin_sync/mapper.py`.
 
 ### 2. Fetching Activities from Garmin
 
 To download and format your activities for a specific date:
 
 ```bash
-python sync.py --fetch 2026-06-13
+garmin-sync --fetch 2026-06-13
 ```
 
 This will print out all activities recorded on that date in a clean Markdown format with the exact Garmin metrics (Pace, HR, Training Load, Cadence, Power, etc.), ready to be pasted into your daily notes.
