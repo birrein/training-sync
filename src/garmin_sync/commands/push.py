@@ -1,3 +1,7 @@
+"""
+This module provides functionality to parse workout data and push it to Garmin Connect.
+"""
+
 import json
 import logging
 from datetime import datetime
@@ -6,13 +10,41 @@ from garmin_sync.mapper import get_mapping, load_garmin_dict
 
 logger = logging.getLogger(__name__)
 
+GRAMS_PER_KG = 1000.0
+DEFAULT_ACTIVE_DURATION = 30.0
+DEFAULT_REST_DURATION = 60.0
+REST_WEIGHT = -1.0
+
 def parse_workout(json_str: str) -> dict:
+    """
+    Parse a JSON string containing workout data into a dictionary.
+
+    Args:
+        json_str (str): The JSON string representation of the workout.
+
+    Returns:
+        dict: The parsed workout data.
+
+    Raises:
+        ValueError: If the JSON string is invalid.
+    """
     try:
         return json.loads(json_str)
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON: {e}")
 
 def push_workout(client: Garmin, workout_data: dict):
+    """
+    Push a workout dictionary to an existing Garmin Connect activity.
+
+    Args:
+        client (Garmin): The authenticated Garmin Connect client.
+        workout_data (dict): The parsed workout data to be pushed.
+
+    Raises:
+        RuntimeError: If no suitable strength training activity is found for the given date.
+        Exception: Re-raises any exception encountered when updating exercises.
+    """
     garmin_dict = load_garmin_dict()
     date = workout_data.get('date', datetime.today().strftime('%Y-%m-%d'))
     activities = client.get_activities_by_date(date, date)
@@ -20,7 +52,16 @@ def push_workout(client: Garmin, workout_data: dict):
     if not activities:
         raise RuntimeError(f"No activities found for date {date}")
         
-    activity = activities[0]
+    activity = None
+    for act in activities:
+        activity_type = act.get('activityType', {})
+        if activity_type.get('typeKey') == 'strength_training':
+            activity = act
+            break
+            
+    if not activity:
+        raise RuntimeError(f"No strength training activity found for date {date}")
+        
     activity_id = activity.get('activityId')
     logger.info(f"Found activity: {activity_id} - {activity.get('activityName')}")
     
@@ -47,9 +88,9 @@ def push_workout(client: Garmin, workout_data: dict):
             sets_payload.append({
                 "exercises": [mapping],
                 "repetitionCount": s.get('reps', 0),
-                "weight": s.get('weight', 0) * 1000.0,
+                "weight": s.get('weight', 0) * GRAMS_PER_KG,
                 "setType": "ACTIVE",
-                "duration": active_base.get("duration", 30.0),
+                "duration": active_base.get("duration", DEFAULT_ACTIVE_DURATION),
                 "startTime": active_base.get("startTime"),
                 "wktStepIndex": None,
                 "messageIndex": None
@@ -60,9 +101,9 @@ def push_workout(client: Garmin, workout_data: dict):
             sets_payload.append({
                 "exercises": [],
                 "repetitionCount": None,
-                "weight": -1.0,
+                "weight": REST_WEIGHT,
                 "setType": "REST",
-                "duration": rest_base.get("duration", 60.0),
+                "duration": rest_base.get("duration", DEFAULT_REST_DURATION),
                 "startTime": None,
                 "wktStepIndex": None,
                 "messageIndex": None
@@ -75,3 +116,4 @@ def push_workout(client: Garmin, workout_data: dict):
         logger.info("Successfully updated exercises.")
     except Exception as e:
         logger.error(f"Failed to update exercises: {e}")
+        raise
