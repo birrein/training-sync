@@ -1,0 +1,27 @@
+{
+  "date": "2026-06-15",
+  "title": "Upper Body Day 1",
+  "exercises": [
+    {
+      "name": "Barbell Bench Press",
+      "sets": [
+        {"reps": 10, "weight": 20},
+        {"reps": 5, "weight": 40},
+        {"reps": 12, "weight": 50},
+        {"reps": 12, "weight": 50},
+        {"reps": 10, "weight": 50},
+        {"reps": 12, "weight": 50}
+      ]
+    },
+    {
+      "name": "Dip",
+      "sets": [
+        {"reps": 6, "weight": 0},
+        {"reps": 6, "weight": 0},
+        {"reps": 6, "weight": 0},
+        {"reps": 6, "weight": 0},
+        {"reps": 6, "weight": 0}
+      ]
+    }
+  ]
+}
