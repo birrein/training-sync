@@ -21,3 +21,4 @@ garmin_token.json
 # Local config or temp files
 *.log
 .worktrees/
+*.egg-info/
