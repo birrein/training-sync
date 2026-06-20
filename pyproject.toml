@@ -15,3 +15,4 @@ dependencies = [
 
 [project.scripts]
 garmin-sync = "garmin_sync.cli:main"
+training-sync = "training_sync.cli:main"

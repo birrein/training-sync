@@ -1,49 +1,27 @@
-"""
-Command-line interface entrypoint for Garmin Sync.
-"""
+"""Backward-compatible garmin-sync CLI entrypoint."""
 
-import os
-import sys
-import argparse
-import logging
-from garmin_sync.auth import get_client
-from garmin_sync.commands.push import push_workout, parse_workout
-from garmin_sync.commands.fetch import fetch_and_print_activities
-from garmin_sync.commands.weight import print_weight_tag
+from training_sync import cli as training_cli
 
-def setup_logging() -> None:
-    """Configure basic logging for the application."""
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+get_client = training_cli.get_client
+fetch_and_print_activities = training_cli.fetch_and_print_activities
+parse_workout = training_cli.parse_workout
+print_weight_tag = training_cli.print_weight_tag
+push_workout = training_cli.push_workout
+
 
 def main() -> None:
-    """Execute the main CLI command logic."""
-    setup_logging()
-    parser = argparse.ArgumentParser(description="Sync Fitbod JSON to Garmin Connect, or fetch Garmin activities.")
-    parser.add_argument("json_string", nargs="?", help="JSON string of the workout or path to JSON file")
-    parser.add_argument("--fetch", help="Fetch activities for a given date (YYYY-MM-DD)", type=str)
-    parser.add_argument("--weight", help="Print the closest Garmin body-weight tag for a given date (YYYY-MM-DD)", type=str)
-    args = parser.parse_args()
-
-    # The auth flow needs to run before any commands are executed.
-    client = get_client()
-
-    if args.fetch:
-        fetch_and_print_activities(client, args.fetch)
-    elif args.weight:
-        print_weight_tag(client, args.weight)
-    elif args.json_string:
-        try:
-            if os.path.isfile(args.json_string):
-                with open(args.json_string, 'r') as f:
-                    workout_data = parse_workout(f.read())
-            else:
-                workout_data = parse_workout(args.json_string)
-        except ValueError as e:
-            sys.exit(f"Data error: {e}")
-            
-        push_workout(client, workout_data)
-    else:
-        parser.print_help()
+    handlers = training_cli.CommandHandlers(
+        get_client=get_client,
+        fetch_and_print_activities=fetch_and_print_activities,
+        parse_workout=parse_workout,
+        print_weight_tag=print_weight_tag,
+        push_workout=push_workout,
+    )
+    token = training_cli.set_command_handlers(handlers)
+    try:
+        training_cli.main()
+    finally:
+        training_cli.reset_command_handlers(token)
 
 if __name__ == "__main__":
     main()
