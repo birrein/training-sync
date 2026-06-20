@@ -1,20 +1,12 @@
 """Helpers for reading Garmin body-weight entries."""
 
-from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
 from garminconnect import Garmin
+from training_sync.domain.body_weight import WeightReading, format_weight_tag
 
 GRAMS_PER_KG = 1000.0
-
-
-@dataclass(frozen=True)
-class WeightReading:
-    calendar_date: str
-    weight_kg: float
-    source_type: str | None
-    day_delta: int
 
 
 def find_nearest_weight(
@@ -37,11 +29,6 @@ def find_nearest_weight(
         return None
 
     return min(readings, key=lambda reading: (abs(reading.day_delta), reading.day_delta))
-
-
-def format_weight_tag(reading: WeightReading) -> str:
-    """Format a Garmin weight reading for Weight x Reps blocks."""
-    return f"@ {reading.weight_kg:.1f} bw"
 
 
 def print_weight_tag(client: Garmin, target_date: str) -> bool:
