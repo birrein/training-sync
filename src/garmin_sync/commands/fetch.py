@@ -1,6 +1,7 @@
 """Module for fetching and formatting Garmin activities."""
 
 from garminconnect import Garmin
+from garmin_sync.commands.weight import find_nearest_weight, format_weight_tag
 
 METERS_IN_KILOMETER = 1000.0
 SECONDS_IN_HOUR = 3600
@@ -49,6 +50,10 @@ def fetch_and_print_activities(client: Garmin, date_str: str) -> None:
         print(f"{date_str}\n")
         
         act_type = act.get('activityType', {}).get('typeKey', '')
+        weight_tag = _body_weight_tag(client, date_str, act_type)
+        if weight_tag:
+            print(weight_tag)
+
         if 'run' in act_type:
             print("#Running")
         elif 'cycl' in act_type:
@@ -68,3 +73,14 @@ def fetch_and_print_activities(client: Garmin, date_str: str) -> None:
         if cadence: print(f"@ Avg Cadence: {int(cadence)}")
         if cals: print(f"@ Calories: {int(cals)}")
         print("```\n")
+
+
+def _body_weight_tag(client: Garmin, date_str: str, act_type: str) -> str | None:
+    if act_type != 'strength_training':
+        return None
+
+    reading = find_nearest_weight(client, date_str)
+    if reading is None:
+        return None
+
+    return format_weight_tag(reading)

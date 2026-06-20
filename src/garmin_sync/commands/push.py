@@ -4,16 +4,13 @@ This module provides functionality to parse workout data and push it to Garmin C
 
 import json
 import logging
-from datetime import datetime
 from garminconnect import Garmin
-from garmin_sync.mapper import get_mapping, load_garmin_dict
+from garmin_sync.garmin_payloads import build_exercise_sets_payload
+from garmin_sync.mapper import load_garmin_dict
+from garmin_sync.workouts import strength_workout_from_dict
 
 logger = logging.getLogger(__name__)
 
-GRAMS_PER_KG = 1000.0
-DEFAULT_ACTIVE_DURATION = 30.0
-DEFAULT_REST_DURATION = 60.0
-REST_WEIGHT = -1.0
 
 def parse_workout(json_str: str) -> dict:
     """
@@ -33,6 +30,7 @@ def parse_workout(json_str: str) -> dict:
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON: {e}")
 
+
 def push_workout(client: Garmin, workout_data: dict):
     """
     Push a workout dictionary to an existing Garmin Connect activity.
@@ -45,12 +43,11 @@ def push_workout(client: Garmin, workout_data: dict):
         RuntimeError: If no suitable strength training activity is found for the given date.
         Exception: Re-raises any exception encountered when updating exercises.
     """
-    garmin_dict = load_garmin_dict()
-    date = workout_data.get('date', datetime.today().strftime('%Y-%m-%d'))
-    activities = client.get_activities_by_date(date, date)
+    workout = strength_workout_from_dict(workout_data)
+    activities = client.get_activities_by_date(workout.date, workout.date)
         
     if not activities:
-        raise RuntimeError(f"No activities found for date {date}")
+        raise RuntimeError(f"No activities found for date {workout.date}")
         
     activity = None
     for act in activities:
@@ -60,57 +57,25 @@ def push_workout(client: Garmin, workout_data: dict):
             break
             
     if not activity:
-        raise RuntimeError(f"No strength training activity found for date {date}")
+        raise RuntimeError(f"No strength training activity found for date {workout.date}")
         
     activity_id = activity.get('activityId')
     logger.info(f"Found activity: {activity_id} - {activity.get('activityName')}")
     
-    title = workout_data.get('title')
-    if title:
-        client.set_activity_name(activity_id, title)
-        logger.info(f"Updated title to: {title}")
+    if workout.title:
+        client.set_activity_name(activity_id, workout.title)
+        logger.info(f"Updated title to: {workout.title}")
         
-    exercises = workout_data.get('exercises', [])
-    if not exercises:
+    if not workout.exercises:
         return
 
     existing_sets = client.get_activity_exercise_sets(activity_id)
     existing_array = existing_sets.get('exerciseSets', [])
-    
-    sets_payload = []
-    msg_idx = 0
-    
-    for ex in exercises:
-        mapping = get_mapping(ex.get('name', 'UNKNOWN'), garmin_dict)
-        
-        for s in ex.get('sets', []):
-            active_base = existing_array[msg_idx] if msg_idx < len(existing_array) else {}
-            sets_payload.append({
-                "exercises": [mapping],
-                "repetitionCount": s.get('reps', 0),
-                "weight": s.get('weight', 0) * GRAMS_PER_KG,
-                "setType": "ACTIVE",
-                "duration": active_base.get("duration", DEFAULT_ACTIVE_DURATION),
-                "startTime": active_base.get("startTime"),
-                "wktStepIndex": None,
-                "messageIndex": None
-            })
-            msg_idx += 1
-            
-            rest_base = existing_array[msg_idx] if msg_idx < len(existing_array) else {}
-            sets_payload.append({
-                "exercises": [],
-                "repetitionCount": None,
-                "weight": REST_WEIGHT,
-                "setType": "REST",
-                "duration": rest_base.get("duration", DEFAULT_REST_DURATION),
-                "startTime": None,
-                "wktStepIndex": None,
-                "messageIndex": None
-            })
-            msg_idx += 1
-            
-    existing_sets['exerciseSets'] = sets_payload
+    existing_sets['exerciseSets'] = build_exercise_sets_payload(
+        workout,
+        existing_array,
+        load_garmin_dict(),
+    )
     try:
         client.set_activity_exercise_sets(activity_id, existing_sets)
         logger.info("Successfully updated exercises.")

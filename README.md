@@ -54,5 +54,21 @@ garmin-sync --fetch 2026-06-13
 
 This will print out all activities recorded on that date in a clean Markdown format with the exact Garmin metrics (Pace, HR, Training Load, Cadence, Power, etc.), ready to be pasted into your daily notes.
 
+For strength activities, the fetch output includes the closest Garmin weigh-in as a Weight x Reps body-weight tag when available:
+
+```text
+@ 71.4 bw
+```
+
+### 3. Fetching Body Weight from Garmin
+
+To print only the closest Garmin body-weight tag for a specific date:
+
+```bash
+garmin-sync --weight 2026-06-19
+```
+
+This uses the nearest available Garmin weigh-in around the requested date and prints a Weight x Reps-compatible line.
+
 ## License
 MIT License
