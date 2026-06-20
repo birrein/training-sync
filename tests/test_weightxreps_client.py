@@ -1,0 +1,87 @@
+from training_sync.weightxreps.client import WeightxRepsClient
+
+
+class FakeResponse:
+    def __init__(self, payload, status_code=200):
+        self.payload = payload
+        self.status_code = status_code
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise RuntimeError(f"HTTP {self.status_code}")
+
+    def json(self):
+        return self.payload
+
+
+class FakeSession:
+    def __init__(self, payload=None):
+        self.calls = []
+        self.payload = payload or {"data": {"saveJEditor": True}}
+
+    def post(self, url, json, headers):
+        self.calls.append((url, json, headers))
+        return FakeResponse(self.payload)
+
+
+def test_graphql_posts_with_bearer_token():
+    session = FakeSession()
+    client = WeightxRepsClient(access_token="token-123", session=session)
+
+    result = client.graphql("mutation X { x }", {"rows": []})
+
+    assert result == {"saveJEditor": True}
+    assert session.calls[0][0] == "https://weightxreps.net/api/graphql"
+    assert session.calls[0][2]["Authorization"] == "Bearer token-123"
+
+
+def test_save_jeditor_sends_rows_variable():
+    session = FakeSession()
+    client = WeightxRepsClient(access_token="token-123", session=session)
+
+    client.save_jeditor([{"on": "2026-06-19", "did": []}])
+
+    payload = session.calls[0][1]
+    assert "saveJEditor" in payload["query"]
+    assert payload["variables"] == {
+        "rows": [{"on": "2026-06-19", "did": []}],
+        "defaultDate": "2026-06-19",
+    }
+
+
+def test_jeditor_day_reads_existing_editor_data():
+    session = FakeSession(
+        {
+            "data": {
+                "jeditor": {
+                    "baseBW": 71.4,
+                    "did": [{"__typename": "JEditorDayTag", "on": "2026-06-19"}],
+                    "exercises": [],
+                }
+            }
+        }
+    )
+    client = WeightxRepsClient(access_token="token-123", session=session)
+
+    data = client.jeditor_day("2026-06-19")
+
+    assert data["baseBW"] == 71.4
+    assert "jeditor" in session.calls[0][1]["query"]
+    assert session.calls[0][1]["variables"] == {"ymd": "2026-06-19", "range": 0}
+
+
+def test_day_has_content_uses_jeditor_data():
+    session = FakeSession(
+        {
+            "data": {
+                "jeditor": {
+                    "baseBW": None,
+                    "did": [{"__typename": "JEditorDayTag", "on": "2026-06-19"}],
+                    "exercises": [],
+                }
+            }
+        }
+    )
+    client = WeightxRepsClient(access_token="token-123", session=session)
+
+    assert client.day_has_content("2026-06-19") is True
