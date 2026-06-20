@@ -13,7 +13,11 @@ from garmin_sync.auth import get_client
 from garmin_sync.commands.fetch import fetch_and_print_activities
 from garmin_sync.commands.push import parse_workout, push_workout
 from garmin_sync.commands.weight import print_weight_tag
+from training_sync.config import weightxreps_token_path
 from training_sync.use_cases.weightxreps_preview import preview_weightxreps_day_from_vault
+from training_sync.use_cases.weightxreps_push import push_weightxreps_day
+from training_sync.weightxreps.auth import load_tokens
+from training_sync.weightxreps.client import WeightxRepsClient
 
 DEFAULT_VAULT_ROOT = Path("/Users/birrein/Library/Mobile Documents/iCloud~md~obsidian/Documents/brn-vault")
 
@@ -96,6 +100,10 @@ def _add_modern_subcommands(parser: argparse.ArgumentParser) -> None:
     weightxreps_preview = weightxreps_subparsers.add_parser("preview", help="Preview Weight x Reps rows")
     weightxreps_preview.add_argument("date")
 
+    weightxreps_push = weightxreps_subparsers.add_parser("push", help="Push Weight x Reps rows")
+    weightxreps_push.add_argument("date")
+    weightxreps_push.add_argument("--yes", action="store_true", help="Replace existing Weight x Reps content")
+
 
 def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser, handlers: CommandHandlers) -> None:
     if getattr(args, "fetch", None):
@@ -132,6 +140,10 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser, handler
         preview_weightxreps_day(args.date)
         return
 
+    if getattr(args, "command", None) == "weightxreps" and args.weightxreps_command == "push":
+        push_weightxreps_day_cli(args.date, yes=args.yes)
+        return
+
     parser.print_help()
 
 
@@ -159,3 +171,19 @@ def preview_weightxreps_day(date: str) -> None:
         exercise_ids={},
     )
     print(json.dumps(rows, ensure_ascii=False, indent=2))
+
+
+def push_weightxreps_day_cli(date: str, yes: bool) -> None:
+    tokens = load_tokens(weightxreps_token_path())
+    if tokens is None:
+        sys.exit("Weight x Reps token not found. Run training-sync weightxreps auth first.")
+
+    client = WeightxRepsClient(tokens.access_token)
+    result = push_weightxreps_day(
+        DEFAULT_VAULT_ROOT,
+        date,
+        client,
+        exercise_ids={},
+        yes=yes,
+    )
+    print(result)

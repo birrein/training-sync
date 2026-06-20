@@ -139,3 +139,18 @@ def test_training_sync_weightxreps_preview_dispatches(monkeypatch):
     cli.main()
 
     assert calls == [("preview", "2026-06-19")]
+
+
+def test_training_sync_weightxreps_push_dispatches(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(sys, "argv", ["training-sync", "weightxreps", "push", "2026-06-19", "--yes"])
+    monkeypatch.setattr(
+        cli,
+        "push_weightxreps_day_cli",
+        lambda date, yes: calls.append(("push", date, yes)),
+    )
+
+    cli.main()
+
+    assert calls == [("push", "2026-06-19", True)]
