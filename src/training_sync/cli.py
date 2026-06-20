@@ -4,10 +4,14 @@ import argparse
 from collections.abc import Callable, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import os
 from pathlib import Path
+import secrets
 import sys
+from urllib.parse import parse_qs, urlparse
+import webbrowser
 
 from garmin_sync.auth import get_client
 from garmin_sync.commands.fetch import fetch_and_print_activities
@@ -16,10 +20,19 @@ from garmin_sync.commands.weight import print_weight_tag
 from training_sync.config import weightxreps_token_path
 from training_sync.use_cases.weightxreps_preview import preview_weightxreps_day_from_vault
 from training_sync.use_cases.weightxreps_push import push_weightxreps_day
-from training_sync.weightxreps.auth import load_tokens
+from training_sync.weightxreps.auth import (
+    build_authorization_url,
+    exchange_code_for_tokens,
+    generate_pkce_pair,
+    load_tokens,
+    save_tokens,
+)
 from training_sync.weightxreps.client import WeightxRepsClient
 
 DEFAULT_VAULT_ROOT = Path("/Users/birrein/Library/Mobile Documents/iCloud~md~obsidian/Documents/brn-vault")
+WEIGHTXREPS_CLIENT_ID = "training-sync"
+WEIGHTXREPS_REDIRECT_URI = "http://127.0.0.1:8765/callback"
+WEIGHTXREPS_SCOPE = "jread,jwrite"
 
 
 @dataclass(frozen=True)
@@ -97,6 +110,8 @@ def _add_modern_subcommands(parser: argparse.ArgumentParser) -> None:
     weightxreps = subparsers.add_parser("weightxreps", help="Weight x Reps commands")
     weightxreps_subparsers = weightxreps.add_subparsers(dest="weightxreps_command")
 
+    weightxreps_subparsers.add_parser("auth", help="Authenticate Weight x Reps")
+
     weightxreps_preview = weightxreps_subparsers.add_parser("preview", help="Preview Weight x Reps rows")
     weightxreps_preview.add_argument("date")
 
@@ -138,6 +153,10 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser, handler
 
     if getattr(args, "command", None) == "weightxreps" and args.weightxreps_command == "preview":
         preview_weightxreps_day(args.date)
+        return
+
+    if getattr(args, "command", None) == "weightxreps" and args.weightxreps_command == "auth":
+        auth_weightxreps_cli()
         return
 
     if getattr(args, "command", None) == "weightxreps" and args.weightxreps_command == "push":
@@ -187,3 +206,60 @@ def push_weightxreps_day_cli(date: str, yes: bool) -> None:
         yes=yes,
     )
     print(result)
+
+
+def auth_weightxreps_cli() -> None:
+    pkce = generate_pkce_pair()
+    state = secrets.token_urlsafe(24)
+    auth_url = build_authorization_url(
+        client_id=WEIGHTXREPS_CLIENT_ID,
+        redirect_uri=WEIGHTXREPS_REDIRECT_URI,
+        scope=WEIGHTXREPS_SCOPE,
+        state=state,
+        code_challenge=pkce.code_challenge,
+    )
+    print(f"Opening Weight x Reps authorization URL: {auth_url}")
+    webbrowser.open(auth_url)
+    code = _wait_for_weightxreps_callback(WEIGHTXREPS_REDIRECT_URI, expected_state=state)
+    tokens = exchange_code_for_tokens(
+        client_id=WEIGHTXREPS_CLIENT_ID,
+        redirect_uri=WEIGHTXREPS_REDIRECT_URI,
+        code=code,
+        code_verifier=pkce.code_verifier,
+    )
+    save_tokens(weightxreps_token_path(), tokens)
+    print(f"Weight x Reps token saved to {weightxreps_token_path()}")
+
+
+def _wait_for_weightxreps_callback(redirect_uri: str, expected_state: str) -> str:
+    parsed = urlparse(redirect_uri)
+    result: dict[str, str] = {}
+
+    class CallbackHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            query = parse_qs(urlparse(self.path).query)
+            if query.get("state", [""])[0] != expected_state:
+                self.send_error(400, "Invalid OAuth state")
+                return
+            if "error" in query:
+                result["error"] = query["error"][0]
+                self.send_error(400, result["error"])
+                return
+            result["code"] = query.get("code", [""])[0]
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Weight x Reps authorization complete. You can close this tab.")
+
+        def log_message(self, format: str, *args) -> None:
+            return
+
+    server = HTTPServer((parsed.hostname or "127.0.0.1", parsed.port or 80), CallbackHandler)
+    print("Waiting for Weight x Reps authorization callback...")
+    server.handle_request()
+    server.server_close()
+
+    if result.get("error"):
+        raise RuntimeError(result["error"])
+    if not result.get("code"):
+        raise RuntimeError("Weight x Reps authorization code was not received")
+    return result["code"]

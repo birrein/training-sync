@@ -1,6 +1,7 @@
 from training_sync.weightxreps.auth import (
     TokenSet,
     build_authorization_url,
+    exchange_code_for_tokens,
     generate_pkce_pair,
     load_tokens,
     save_tokens,
@@ -45,3 +46,56 @@ def test_token_store_round_trips_json(tmp_path):
     save_tokens(path, tokens)
 
     assert load_tokens(path) == tokens
+
+
+class FakeResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return self.payload
+
+
+class FakeSession:
+    def __init__(self):
+        self.calls = []
+
+    def post(self, url, data):
+        self.calls.append((url, data))
+        return FakeResponse(
+            {
+                "access_token": "access",
+                "refresh_token": "refresh",
+                "expires_in": 3600,
+                "token_type": "Bearer",
+            }
+        )
+
+
+def test_exchange_code_for_tokens_posts_pkce_form():
+    session = FakeSession()
+
+    tokens = exchange_code_for_tokens(
+        client_id="training-sync",
+        redirect_uri="http://127.0.0.1:8765/callback",
+        code="code-123",
+        code_verifier="verifier-123",
+        session=session,
+    )
+
+    assert tokens.access_token == "access"
+    assert session.calls == [
+        (
+            "https://weightxreps.net/api/auth/token",
+            {
+                "grant_type": "authorization_code",
+                "client_id": "training-sync",
+                "redirect_uri": "http://127.0.0.1:8765/callback",
+                "code": "code-123",
+                "code_verifier": "verifier-123",
+            },
+        )
+    ]

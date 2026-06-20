@@ -8,7 +8,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from urllib.parse import urlencode
 
+import requests
+
 AUTH_ENDPOINT = "https://weightxreps.net/api/auth"
+TOKEN_ENDPOINT = f"{AUTH_ENDPOINT}/token"
 
 
 @dataclass(frozen=True)
@@ -53,6 +56,34 @@ def build_authorization_url(
         }
     )
     return f"{AUTH_ENDPOINT}?{query}"
+
+
+def exchange_code_for_tokens(
+    client_id: str,
+    redirect_uri: str,
+    code: str,
+    code_verifier: str,
+    session=None,
+) -> TokenSet:
+    http = session or requests.Session()
+    response = http.post(
+        TOKEN_ENDPOINT,
+        data={
+            "grant_type": "authorization_code",
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "code": code,
+            "code_verifier": code_verifier,
+        },
+    )
+    response.raise_for_status()
+    data = response.json()
+    return TokenSet(
+        access_token=data["access_token"],
+        refresh_token=data.get("refresh_token"),
+        expires_in=data.get("expires_in"),
+        token_type=data.get("token_type", "Bearer"),
+    )
 
 
 def save_tokens(path: Path, tokens: TokenSet) -> None:

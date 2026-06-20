@@ -154,3 +154,14 @@ def test_training_sync_weightxreps_push_dispatches(monkeypatch):
     cli.main()
 
     assert calls == [("push", "2026-06-19", True)]
+
+
+def test_training_sync_weightxreps_auth_dispatches(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(sys, "argv", ["training-sync", "weightxreps", "auth"])
+    monkeypatch.setattr(cli, "auth_weightxreps_cli", lambda: calls.append(("auth",)))
+
+    cli.main()
+
+    assert calls == [("auth",)]
