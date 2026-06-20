@@ -124,3 +124,18 @@ def test_legacy_garmin_sync_cli_still_uses_training_sync_main(monkeypatch):
         ("training-main",),
         ("legacy-weight", "client", "2026-06-19"),
     ]
+
+
+def test_training_sync_weightxreps_preview_dispatches(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(sys, "argv", ["training-sync", "weightxreps", "preview", "2026-06-19"])
+    monkeypatch.setattr(
+        cli,
+        "preview_weightxreps_day",
+        lambda date: calls.append(("preview", date)),
+    )
+
+    cli.main()
+
+    assert calls == [("preview", "2026-06-19")]

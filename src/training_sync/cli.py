@@ -4,13 +4,18 @@ import argparse
 from collections.abc import Callable, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass
+import json
 import os
+from pathlib import Path
 import sys
 
 from garmin_sync.auth import get_client
 from garmin_sync.commands.fetch import fetch_and_print_activities
 from garmin_sync.commands.push import parse_workout, push_workout
 from garmin_sync.commands.weight import print_weight_tag
+from training_sync.use_cases.weightxreps_preview import preview_weightxreps_day_from_vault
+
+DEFAULT_VAULT_ROOT = Path("/Users/birrein/Library/Mobile Documents/iCloud~md~obsidian/Documents/brn-vault")
 
 
 @dataclass(frozen=True)
@@ -61,8 +66,8 @@ def _build_parser(argv: Sequence[str]) -> argparse.ArgumentParser:
         description="Sync training data across Garmin, Obsidian, and Weight x Reps.",
     )
 
-    if argv and argv[0] == "garmin":
-        _add_garmin_subcommands(parser)
+    if argv and argv[0] in {"garmin", "weightxreps"}:
+        _add_modern_subcommands(parser)
     else:
         parser.add_argument("json_string", nargs="?", help=argparse.SUPPRESS)
         parser.add_argument("--fetch", type=str, help=argparse.SUPPRESS)
@@ -71,7 +76,7 @@ def _build_parser(argv: Sequence[str]) -> argparse.ArgumentParser:
     return parser
 
 
-def _add_garmin_subcommands(parser: argparse.ArgumentParser) -> None:
+def _add_modern_subcommands(parser: argparse.ArgumentParser) -> None:
     subparsers = parser.add_subparsers(dest="command")
     garmin = subparsers.add_parser("garmin", help="Garmin Connect commands")
     garmin_subparsers = garmin.add_subparsers(dest="garmin_command")
@@ -84,6 +89,12 @@ def _add_garmin_subcommands(parser: argparse.ArgumentParser) -> None:
 
     garmin_import = garmin_subparsers.add_parser("import-strength", help="Import strength JSON to Garmin")
     garmin_import.add_argument("json_file")
+
+    weightxreps = subparsers.add_parser("weightxreps", help="Weight x Reps commands")
+    weightxreps_subparsers = weightxreps.add_subparsers(dest="weightxreps_command")
+
+    weightxreps_preview = weightxreps_subparsers.add_parser("preview", help="Preview Weight x Reps rows")
+    weightxreps_preview.add_argument("date")
 
 
 def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser, handlers: CommandHandlers) -> None:
@@ -117,6 +128,10 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser, handler
         _push_json_argument(client, args.json_file, handlers)
         return
 
+    if getattr(args, "command", None) == "weightxreps" and args.weightxreps_command == "preview":
+        preview_weightxreps_day(args.date)
+        return
+
     parser.print_help()
 
 
@@ -135,3 +150,12 @@ def _push_json_argument(client, json_arg: str, handlers: CommandHandlers) -> Non
         sys.exit(f"Data error: {exc}")
 
     handlers.push_workout(client, workout_data)
+
+
+def preview_weightxreps_day(date: str) -> None:
+    rows = preview_weightxreps_day_from_vault(
+        DEFAULT_VAULT_ROOT,
+        date,
+        exercise_ids={},
+    )
+    print(json.dumps(rows, ensure_ascii=False, indent=2))
