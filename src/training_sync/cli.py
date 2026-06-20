@@ -83,7 +83,7 @@ def _build_parser(argv: Sequence[str]) -> argparse.ArgumentParser:
         description="Sync training data across Garmin, Obsidian, and Weight x Reps.",
     )
 
-    if argv and argv[0] in {"garmin", "weightxreps"}:
+    if not argv or argv[0] in {"-h", "--help", "garmin", "weightxreps", "sync"}:
         _add_modern_subcommands(parser)
     else:
         parser.add_argument("json_string", nargs="?", help=argparse.SUPPRESS)
@@ -95,6 +95,9 @@ def _build_parser(argv: Sequence[str]) -> argparse.ArgumentParser:
 
 def _add_modern_subcommands(parser: argparse.ArgumentParser) -> None:
     subparsers = parser.add_subparsers(dest="command")
+    sync_parser = subparsers.add_parser("sync", help="Sync one date across Garmin, vault, and Weight x Reps")
+    sync_parser.add_argument("date")
+
     garmin = subparsers.add_parser("garmin", help="Garmin Connect commands")
     garmin_subparsers = garmin.add_subparsers(dest="garmin_command")
 

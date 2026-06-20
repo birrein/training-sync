@@ -1,5 +1,7 @@
 import sys
 
+import pytest
+
 from garmin_sync import cli as legacy_cli
 from training_sync import cli
 
@@ -165,3 +167,16 @@ def test_training_sync_weightxreps_auth_dispatches(monkeypatch):
     cli.main()
 
     assert calls == [("auth",)]
+
+
+def test_training_sync_top_level_help_shows_command_groups(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["training-sync", "--help"])
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+
+    assert exc.value.code == 0
+    output = capsys.readouterr().out
+    assert "garmin" in output
+    assert "weightxreps" in output
+    assert "sync" in output
