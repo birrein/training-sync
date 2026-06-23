@@ -27,17 +27,15 @@ def test_build_jeditor_rows_uses_known_exercise_ids_and_bodyweight():
     assert rows == [
         {"bw": 71.4, "lb": 0},
         {
-            "on": "2026-06-19",
-            "did": [
-                {
-                    "eid": 10,
-                    "erows": [{"w": {"v": 0.0, "lb": 0, "usebw": 1}, "r": 5, "s": 3}],
-                },
-                {
-                    "eid": 20,
-                    "erows": [{"w": {"v": 51.0, "lb": 0}, "r": 12, "s": 3}],
-                },
-            ],
+            "on": "2026-06-19"
+        },
+        {
+            "eid": 10,
+            "erows": [{"w": {"v": 0.0, "lb": 0, "usebw": 1}, "r": 5, "s": 3}],
+        },
+        {
+            "eid": 20,
+            "erows": [{"w": {"v": 51.0, "lb": 0}, "r": 12, "s": 3}],
         },
     ]
 
@@ -57,14 +55,12 @@ def test_build_jeditor_rows_can_create_unknown_exercises():
     rows = build_jeditor_rows(day, exercise_ids={})
 
     assert rows == [
+        {
+            "on": "2026-06-19"
+        },
         {"newExercise": "New Lift"},
         {
-            "on": "2026-06-19",
-            "did": [
-                {
-                    "newExercise": "New Lift",
-                    "erows": [{"w": {"v": 10.0, "lb": 0}, "r": 8, "s": 1}],
-                }
-            ],
+            "eid": 0,
+            "erows": [{"w": {"v": 10.0, "lb": 0}, "r": 8, "s": 1}],
         },
     ]

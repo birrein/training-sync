@@ -80,9 +80,36 @@ class WeightxRepsClient:
             return False
         return bool(day.get("did") or day.get("baseBW"))
 
+    def exercise_ids(self, date: str) -> dict[str, int]:
+        day = self.jeditor_day(date)
+        if not day:
+            return {}
+
+        ids: dict[str, int] = {}
+        for exercise_stat in day.get("exercises") or []:
+            exercise = exercise_stat.get("e") or {}
+            name = exercise.get("name")
+            exercise_id = exercise.get("id")
+            if name and exercise_id:
+                ids[name] = int(exercise_id)
+        return ids
+
     def verify_day(self, date: str, rows: list[dict[str, Any]]) -> bool:
         day = self.jeditor_day(date)
-        return bool(day and day.get("did"))
+        if not day:
+            return False
+
+        expected_blocks = sum(
+            1
+            for row in rows
+            if row.get("eid") is not None
+        )
+        saved_blocks = [
+            token
+            for token in day.get("did") or []
+            if token.get("__typename") == "JEditorEBlock"
+        ]
+        return len(saved_blocks) >= expected_blocks
 
 
 def _default_date_from_rows(rows: list[dict[str, Any]]) -> str:

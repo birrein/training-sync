@@ -14,22 +14,22 @@ def build_jeditor_rows(
     if day.body_weight_kg is not None:
         rows.append({"bw": day.body_weight_kg, "lb": 0})
 
-    did = []
+    new_exercise_index = 0
+    rows.append({"on": day.date})
     for exercise in day.exercises:
         exercise_row: dict[str, Any]
         if exercise.name in exercise_ids:
             exercise_row = {"eid": exercise_ids[exercise.name]}
         else:
             rows.append({"newExercise": exercise.name})
-            exercise_row = {"newExercise": exercise.name}
+            exercise_row = {"eid": -new_exercise_index}
+            new_exercise_index += 1
 
         exercise_row["erows"] = [
             _set_line_to_erow(set_line)
             for set_line in exercise.sets
         ]
-        did.append(exercise_row)
-
-    rows.append({"on": day.date, "did": did})
+        rows.append(exercise_row)
     return rows
 
 

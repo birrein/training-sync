@@ -12,6 +12,9 @@ def push_weightxreps_day(
     exercise_ids: dict[str, int],
     yes: bool,
 ) -> str:
+    if not exercise_ids and hasattr(client, "exercise_ids"):
+        exercise_ids = client.exercise_ids(date)
+
     rows = preview_weightxreps_day_from_vault(vault_root, date, exercise_ids)
     exists = client.day_has_content(date)
     if exists and not yes:

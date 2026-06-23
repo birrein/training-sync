@@ -85,3 +85,26 @@ def test_day_has_content_uses_jeditor_data():
     client = WeightxRepsClient(access_token="token-123", session=session)
 
     assert client.day_has_content("2026-06-19") is True
+
+
+def test_exercise_ids_reads_existing_editor_exercises():
+    session = FakeSession(
+        {
+            "data": {
+                "jeditor": {
+                    "baseBW": None,
+                    "did": [],
+                    "exercises": [
+                        {"e": {"id": "157728", "name": "Barbell Back Squat"}},
+                        {"e": {"id": "158078", "name": "Hanging Knee Raise"}},
+                    ],
+                }
+            }
+        }
+    )
+    client = WeightxRepsClient(access_token="token-123", session=session)
+
+    assert client.exercise_ids("2026-06-20") == {
+        "Barbell Back Squat": 157728,
+        "Hanging Knee Raise": 158078,
+    }

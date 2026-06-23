@@ -6,12 +6,16 @@ from training_sync.use_cases.weightxreps_push import push_weightxreps_day
 
 
 class FakeWeightxRepsClient:
-    def __init__(self, existing=False):
+    def __init__(self, existing=False, exercise_ids=None):
         self.existing = existing
+        self.exercise_ids_map = exercise_ids or {}
         self.saved_rows = None
 
     def day_has_content(self, date):
         return self.existing
+
+    def exercise_ids(self, date):
+        return self.exercise_ids_map
 
     def save_jeditor(self, rows):
         self.saved_rows = rows
@@ -58,6 +62,22 @@ def test_push_weightxreps_day_writes_rows_when_remote_day_is_empty(tmp_path):
 
     assert result == "saved"
     assert client.saved_rows[0] == {"bw": 71.4, "lb": 0}
+
+
+def test_push_weightxreps_day_uses_remote_exercise_ids_when_not_provided(tmp_path):
+    vault = tmp_path / "vault"
+    _write_daily(vault)
+    client = FakeWeightxRepsClient(existing=False, exercise_ids={"Chin Up": 10})
+
+    push_weightxreps_day(
+        vault,
+        "2026-06-19",
+        client,
+        exercise_ids={},
+        yes=False,
+    )
+
+    assert client.saved_rows[2]["eid"] == 10
 
 
 def test_push_weightxreps_day_requires_yes_when_remote_day_exists(tmp_path):
