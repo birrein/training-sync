@@ -38,6 +38,7 @@ query JEditorDay($ymd: YMD!, $range: Int) {
           s
           lb
           usebw
+          type
         }
       }
     }
@@ -109,7 +110,17 @@ class WeightxRepsClient:
             for token in day.get("did") or []
             if token.get("__typename") == "JEditorEBlock"
         ]
-        return len(saved_blocks) >= expected_blocks
+        if len(saved_blocks) < expected_blocks:
+            return False
+
+        for block in saved_blocks[:expected_blocks]:
+            sets = block.get("sets") or []
+            if not sets:
+                return False
+            if any(set_row.get("type") != 0 for set_row in sets):
+                return False
+
+        return True
 
 
 def _default_date_from_rows(rows: list[dict[str, Any]]) -> str:

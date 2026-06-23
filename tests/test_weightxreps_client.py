@@ -67,6 +67,7 @@ def test_jeditor_day_reads_existing_editor_data():
 
     assert data["baseBW"] == 71.4
     assert "jeditor" in session.calls[0][1]["query"]
+    assert "type" in session.calls[0][1]["query"]
     assert session.calls[0][1]["variables"] == {"ymd": "2026-06-19", "range": 0}
 
 
@@ -108,3 +109,50 @@ def test_exercise_ids_reads_existing_editor_exercises():
         "Barbell Back Squat": 157728,
         "Hanging Knee Raise": 158078,
     }
+
+
+def test_verify_day_requires_saved_exercise_blocks_with_weight_x_reps_type():
+    session = FakeSession(
+        {
+            "data": {
+                "jeditor": {
+                    "baseBW": None,
+                    "did": [
+                        {"__typename": "JEditorDayTag", "on": "2026-06-20"},
+                        {
+                            "__typename": "JEditorEBlock",
+                            "e": 157728,
+                            "sets": [{"v": 47, "r": 8, "s": 1, "type": 0}],
+                        },
+                    ],
+                    "exercises": [],
+                }
+            }
+        }
+    )
+    client = WeightxRepsClient(access_token="token-123", session=session)
+
+    assert client.verify_day("2026-06-20", [{"eid": 157728, "erows": []}]) is True
+
+
+def test_verify_day_rejects_saved_sets_without_type():
+    session = FakeSession(
+        {
+            "data": {
+                "jeditor": {
+                    "baseBW": None,
+                    "did": [
+                        {
+                            "__typename": "JEditorEBlock",
+                            "e": 157728,
+                            "sets": [{"v": 47, "r": 8, "s": 1, "type": None}],
+                        },
+                    ],
+                    "exercises": [],
+                }
+            }
+        }
+    )
+    client = WeightxRepsClient(access_token="token-123", session=session)
+
+    assert client.verify_day("2026-06-20", [{"eid": 157728, "erows": []}]) is False

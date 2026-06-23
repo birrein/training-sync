@@ -5,6 +5,8 @@ from typing import Any
 
 from training_sync.renderers.weightxreps_text import ParsedSetLine, ParsedTrainingDay
 
+WEIGHT_X_REPS_SET_TYPE = 0
+
 
 def build_jeditor_rows(
     day: ParsedTrainingDay,
@@ -40,6 +42,7 @@ def _set_line_to_erow(set_line: ParsedSetLine) -> dict[str, Any]:
             "w": _weight_payload(set_line),
             "r": set_line.reps[0],
             "s": 1,
+            "type": WEIGHT_X_REPS_SET_TYPE,
             "c": "Unconsolidated reps: " + ", ".join(str(rep) for rep in set_line.reps),
         }
 
@@ -48,6 +51,7 @@ def _set_line_to_erow(set_line: ParsedSetLine) -> dict[str, Any]:
         "w": _weight_payload(set_line),
         "r": reps,
         "s": sets,
+        "type": WEIGHT_X_REPS_SET_TYPE,
     }
 
 
