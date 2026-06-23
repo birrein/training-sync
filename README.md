@@ -101,5 +101,9 @@ training-sync weightxreps push 2026-06-19 --yes
 
 Tokens are stored outside the repo under `~/.config/training-sync/`.
 
+Current limitation: Weight x Reps pushes only support standard `WEIGHT_X_REPS`
+sets (`type: 0`). Time-based or distance-based exercise rows will need an
+explicit set-type mapping before they are synced.
+
 ## License
 MIT License

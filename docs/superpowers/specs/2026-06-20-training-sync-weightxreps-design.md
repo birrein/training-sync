@@ -241,11 +241,18 @@ Implementation should start with the subset needed by current logs:
 - bodyweight sets,
 - one date at a time.
 
+Technical debt:
+
+- Current set rows are written as Weight x Reps `WEIGHT_X_REPS` sets with `type: 0`.
+- Before supporting time-based or distance-based exercises, promote the set type into the parsed/domain model instead of hard-coding it in the JEditor builder.
+- Future mapping should cover Weight x Reps set types explicitly, at least `WEIGHT_X_REPS = 0`, `WEIGHT_X_TIME = 1`, and `WEIGHT_X_DISTANCE = 2`, and verification should compare the expected type per set instead of assuming every saved set is `0`.
+
 Exercise ID handling:
 
 - Prefer lookup by existing Weight x Reps exercise name.
 - If a matching exercise does not exist and the API supports `{ newExercise: "..." }`, use that as the creation path.
 - If creation or lookup is ambiguous, stop with an actionable error rather than guessing.
+- For the detailed exercise-alias and confirmation design, see `docs/superpowers/specs/2026-06-22-weightxreps-exercise-resolution-design.md`.
 
 ## Error Handling
 
@@ -298,4 +305,3 @@ Manual verification:
 - Exercise lookup and creation may require more GraphQL work than the minimal `JEditorSaveRow` docs show.
 - Replacing a full Weight x Reps day is convenient but potentially destructive; confirmation and verification must be solid.
 - Renaming the Python package can be noisy; compatibility aliases should keep daily use working during migration.
-
