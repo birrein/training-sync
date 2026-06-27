@@ -4,6 +4,7 @@ from training_sync.weightxreps.auth import (
     exchange_code_for_tokens,
     generate_pkce_pair,
     load_tokens,
+    refresh_access_token,
     save_tokens,
 )
 
@@ -96,6 +97,29 @@ def test_exchange_code_for_tokens_posts_pkce_form():
                 "redirect_uri": "http://127.0.0.1:8765/callback",
                 "code": "code-123",
                 "code_verifier": "verifier-123",
+            },
+        )
+    ]
+
+
+def test_refresh_access_token_posts_refresh_token_form():
+    session = FakeSession()
+
+    tokens = refresh_access_token(
+        client_id="training-sync",
+        refresh_token="refresh-123",
+        session=session,
+    )
+
+    assert tokens.access_token == "access"
+    assert tokens.refresh_token == "refresh"
+    assert session.calls == [
+        (
+            "https://weightxreps.net/api/auth/token",
+            {
+                "grant_type": "refresh_token",
+                "client_id": "training-sync",
+                "refresh_token": "refresh-123",
             },
         )
     ]

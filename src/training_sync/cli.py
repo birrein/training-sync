@@ -21,10 +21,12 @@ from training_sync.config import weightxreps_token_path
 from training_sync.use_cases.weightxreps_preview import preview_weightxreps_day_from_vault
 from training_sync.use_cases.weightxreps_push import push_weightxreps_day
 from training_sync.weightxreps.auth import (
+    TokenSet,
     build_authorization_url,
     exchange_code_for_tokens,
     generate_pkce_pair,
     load_tokens,
+    refresh_access_token,
     save_tokens,
 )
 from training_sync.weightxreps.client import WeightxRepsClient
@@ -196,11 +198,12 @@ def preview_weightxreps_day(date: str) -> None:
 
 
 def push_weightxreps_day_cli(date: str, yes: bool) -> None:
-    tokens = load_tokens(weightxreps_token_path())
+    token_path = weightxreps_token_path()
+    tokens = load_tokens(token_path)
     if tokens is None:
         sys.exit("Weight x Reps token not found. Run training-sync weightxreps auth first.")
 
-    client = WeightxRepsClient(tokens.access_token)
+    client = build_weightxreps_client(tokens, token_path)
     result = push_weightxreps_day(
         DEFAULT_VAULT_ROOT,
         date,
@@ -209,6 +212,24 @@ def push_weightxreps_day_cli(date: str, yes: bool) -> None:
         yes=yes,
     )
     print(result)
+
+
+def build_weightxreps_client(tokens: TokenSet, token_path: Path) -> WeightxRepsClient:
+    current_tokens = tokens
+
+    def refresh_token() -> str:
+        nonlocal current_tokens
+        if not current_tokens.refresh_token:
+            raise RuntimeError("Weight x Reps refresh token not found. Run training-sync weightxreps auth first.")
+
+        current_tokens = refresh_access_token(
+            client_id=WEIGHTXREPS_CLIENT_ID,
+            refresh_token=current_tokens.refresh_token,
+        )
+        save_tokens(token_path, current_tokens)
+        return current_tokens.access_token
+
+    return WeightxRepsClient(tokens.access_token, token_refresher=refresh_token)
 
 
 def auth_weightxreps_cli() -> None:

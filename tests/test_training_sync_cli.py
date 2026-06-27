@@ -4,6 +4,7 @@ import pytest
 
 from garmin_sync import cli as legacy_cli
 from training_sync import cli
+from training_sync.weightxreps.auth import TokenSet
 
 
 def test_training_sync_garmin_fetch_dispatches_to_existing_fetch(monkeypatch):
@@ -167,6 +168,36 @@ def test_training_sync_weightxreps_auth_dispatches(monkeypatch):
     cli.main()
 
     assert calls == [("auth",)]
+
+
+def test_weightxreps_client_refresher_saves_new_tokens(monkeypatch, tmp_path):
+    saved = []
+    initial_tokens = TokenSet(
+        access_token="expired-token",
+        refresh_token="refresh-token",
+        expires_in=3600,
+        token_type="Bearer",
+    )
+    refreshed_tokens = TokenSet(
+        access_token="fresh-token",
+        refresh_token="new-refresh-token",
+        expires_in=3600,
+        token_type="Bearer",
+    )
+
+    monkeypatch.setattr(
+        cli,
+        "refresh_access_token",
+        lambda client_id, refresh_token: refreshed_tokens,
+    )
+    monkeypatch.setattr(cli, "save_tokens", lambda path, tokens: saved.append((path, tokens)))
+
+    client = cli.build_weightxreps_client(initial_tokens, tmp_path / "token.json")
+    refreshed_access_token = client.token_refresher()
+
+    assert refreshed_access_token == "fresh-token"
+    assert saved == [(tmp_path / "token.json", refreshed_tokens)]
+    assert client.access_token == "expired-token"
 
 
 def test_training_sync_top_level_help_shows_command_groups(monkeypatch, capsys):

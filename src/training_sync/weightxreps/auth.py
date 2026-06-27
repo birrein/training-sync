@@ -86,6 +86,30 @@ def exchange_code_for_tokens(
     )
 
 
+def refresh_access_token(
+    client_id: str,
+    refresh_token: str,
+    session=None,
+) -> TokenSet:
+    http = session or requests.Session()
+    response = http.post(
+        TOKEN_ENDPOINT,
+        data={
+            "grant_type": "refresh_token",
+            "client_id": client_id,
+            "refresh_token": refresh_token,
+        },
+    )
+    response.raise_for_status()
+    data = response.json()
+    return TokenSet(
+        access_token=data["access_token"],
+        refresh_token=data.get("refresh_token", refresh_token),
+        expires_in=data.get("expires_in"),
+        token_type=data.get("token_type", "Bearer"),
+    )
+
+
 def save_tokens(path: Path, tokens: TokenSet) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(asdict(tokens), indent=2), encoding="utf-8")

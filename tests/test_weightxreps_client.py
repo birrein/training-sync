@@ -17,11 +17,18 @@ class FakeResponse:
 class FakeSession:
     def __init__(self, payload=None):
         self.calls = []
-        self.payload = payload or {"data": {"saveJEditor": True}}
+        self.responses = [
+            response if isinstance(response, FakeResponse) else FakeResponse(response)
+            for response in (
+                payload
+                if isinstance(payload, list)
+                else [payload or {"data": {"saveJEditor": True}}]
+            )
+        ]
 
     def post(self, url, json, headers):
         self.calls.append((url, json, headers))
-        return FakeResponse(self.payload)
+        return self.responses.pop(0)
 
 
 def test_graphql_posts_with_bearer_token():
@@ -33,6 +40,33 @@ def test_graphql_posts_with_bearer_token():
     assert result == {"saveJEditor": True}
     assert session.calls[0][0] == "https://weightxreps.net/api/graphql"
     assert session.calls[0][2]["Authorization"] == "Bearer token-123"
+
+
+def test_graphql_refreshes_token_once_after_unauthorized_response():
+    session = FakeSession(
+        [
+            FakeResponse({"errors": ["expired"]}, status_code=401),
+            FakeResponse({"data": {"saveJEditor": True}}),
+        ]
+    )
+    refresh_calls = []
+
+    def refresh_token():
+        refresh_calls.append("refresh")
+        return "fresh-token"
+
+    client = WeightxRepsClient(
+        access_token="expired-token",
+        session=session,
+        token_refresher=refresh_token,
+    )
+
+    result = client.graphql("mutation X { x }", {"rows": []})
+
+    assert result == {"saveJEditor": True}
+    assert refresh_calls == ["refresh"]
+    assert session.calls[0][2]["Authorization"] == "Bearer expired-token"
+    assert session.calls[1][2]["Authorization"] == "Bearer fresh-token"
 
 
 def test_save_jeditor_sends_rows_variable():

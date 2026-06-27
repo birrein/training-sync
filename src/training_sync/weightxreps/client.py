@@ -1,5 +1,6 @@
 """GraphQL client for Weight x Reps."""
 
+from collections.abc import Callable
 from typing import Any
 
 import requests
@@ -48,21 +49,34 @@ query JEditorDay($ymd: YMD!, $range: Int) {
 
 
 class WeightxRepsClient:
-    def __init__(self, access_token: str, session=None) -> None:
+    def __init__(
+        self,
+        access_token: str,
+        session=None,
+        token_refresher: Callable[[], str] | None = None,
+    ) -> None:
         self.access_token = access_token
         self.session = session or requests.Session()
+        self.token_refresher = token_refresher
 
     def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
-        response = self.session.post(
-            GRAPHQL_ENDPOINT,
-            json={"query": query, "variables": variables or {}},
-            headers={"Authorization": f"Bearer {self.access_token}"},
-        )
+        response = self._post_graphql(query, variables)
+        if response.status_code == 401 and self.token_refresher is not None:
+            self.access_token = self.token_refresher()
+            response = self._post_graphql(query, variables)
+
         response.raise_for_status()
         payload = response.json()
         if payload.get("errors"):
             raise RuntimeError(payload["errors"])
         return payload.get("data", {})
+
+    def _post_graphql(self, query: str, variables: dict[str, Any] | None = None):
+        return self.session.post(
+            GRAPHQL_ENDPOINT,
+            json={"query": query, "variables": variables or {}},
+            headers={"Authorization": f"Bearer {self.access_token}"},
+        )
 
     def save_jeditor(self, rows: list[dict[str, Any]]) -> dict[str, Any]:
         default_date = _default_date_from_rows(rows)
