@@ -2,9 +2,11 @@
 
 from dataclasses import dataclass
 from difflib import SequenceMatcher
-import re
 
-from training_sync.weightxreps.exercise_mapping import ExerciseMapping
+from training_sync.weightxreps.exercise_mapping import (
+    ExerciseMapping,
+    normalize_exercise_name,
+)
 
 
 ALLOWED_ACTIONS = [
@@ -109,12 +111,6 @@ def resolve_exercise_ids(
         raise ExerciseResolutionRequired(date, unresolved)
 
     return resolved
-
-
-def normalize_exercise_name(name: str) -> str:
-    without_hash = name.strip().removeprefix("#").strip().lower()
-    without_punctuation = re.sub(r"[^\w\s]", " ", without_hash)
-    return re.sub(r"\s+", " ", without_punctuation).strip()
 
 
 def _local_alias_index(mappings: list[ExerciseMapping]) -> dict[str, ExerciseMapping]:

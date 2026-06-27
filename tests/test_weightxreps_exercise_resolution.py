@@ -1,6 +1,9 @@
 import pytest
 
-from training_sync.weightxreps.exercise_mapping import load_exercise_mappings
+from training_sync.weightxreps.exercise_mapping import (
+    DuplicateExerciseAliasError,
+    load_exercise_mappings,
+)
 from training_sync.weightxreps.exercise_resolution import (
     ExerciseResolutionRequired,
     resolve_exercise_ids,
@@ -29,6 +32,54 @@ aliases = [
         "Hip Thrust",
         "Barbell Hip Thrust with Bench",
     ]
+
+
+def test_missing_exercise_mapping_file_loads_empty_list(tmp_path):
+    assert load_exercise_mappings(tmp_path / "missing.toml") == []
+
+
+def test_duplicate_alias_fails_with_both_targets(tmp_path):
+    mapping_path = tmp_path / "weightxreps-exercises.toml"
+    mapping_path.write_text(
+        """[[exercises]]
+weightxreps_name = "Barbell Hip Thrust"
+weightxreps_id = 157721
+aliases = ["Hip Thrust"]
+
+[[exercises]]
+weightxreps_name = "Hip Thrust Machine"
+weightxreps_id = 157700
+aliases = ["Hip Thrust"]
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DuplicateExerciseAliasError) as exc:
+        load_exercise_mappings(mapping_path)
+
+    assert exc.value.alias == "hip thrust"
+    assert exc.value.targets == ["Barbell Hip Thrust", "Hip Thrust Machine"]
+
+
+def test_duplicate_canonical_name_fails_with_both_targets(tmp_path):
+    mapping_path = tmp_path / "weightxreps-exercises.toml"
+    mapping_path.write_text(
+        """[[exercises]]
+weightxreps_name = "Hip Thrust"
+weightxreps_id = 1
+
+[[exercises]]
+weightxreps_name = "Hip Thrust"
+weightxreps_id = 2
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DuplicateExerciseAliasError) as exc:
+        load_exercise_mappings(mapping_path)
+
+    assert exc.value.alias == "hip thrust"
+    assert exc.value.targets == ["Hip Thrust (id=1)", "Hip Thrust (id=2)"]
 
 
 def test_resolve_exercise_ids_uses_local_alias_before_remote_names(tmp_path):
