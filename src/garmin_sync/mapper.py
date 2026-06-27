@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 FITBOD_CUSTOM_MAP = {
     "BENCH PRESS": {"category": "BENCH_PRESS", "name": "BARBELL_BENCH_PRESS"},
     "BARBELL BENCH PRESS": {"category": "BENCH_PRESS", "name": "BARBELL_BENCH_PRESS"},
+    "FACE PULL": {"category": "ROW", "name": "FACE_PULL"},
+    "CABLE FACE PULL": {"category": "ROW", "name": "FACE_PULL"},
     "DIP": {"category": "TRICEPS_EXTENSION", "name": "BODY_WEIGHT_DIP"},
     "INCLINE DUMBBELL CURL": {"category": "CURL", "name": "INCLINE_DUMBBELL_BICEPS_CURL"},
     "DUMBBELL FLY": {"category": "FLYE", "name": "DUMBBELL_FLYE"},
