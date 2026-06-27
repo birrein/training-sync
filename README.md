@@ -101,6 +101,28 @@ training-sync weightxreps push 2026-06-19 --yes
 
 Tokens are stored outside the repo under `~/.config/training-sync/`.
 
+Exercise aliases are also stored outside the repo:
+
+```text
+~/.config/training-sync/weightxreps-exercises.toml
+```
+
+Example:
+
+```toml
+[[exercises]]
+weightxreps_name = "Barbell Hip Thrust"
+weightxreps_id = 157721
+aliases = [
+  "Hip Thrust",
+  "Barbell Hip Thrust with Bench",
+]
+```
+
+Unknown exercises are not created automatically. If an exercise cannot be
+resolved from the local mapping or the available Weight x Reps exercise IDs,
+the command prints structured JSON with candidates and exits before writing.
+
 Current limitation: Weight x Reps pushes only support standard `WEIGHT_X_REPS`
 sets (`type: 0`). Time-based or distance-based exercise rows will need an
 explicit set-type mapping before they are synced.

@@ -17,7 +17,7 @@ from garmin_sync.auth import get_client
 from garmin_sync.commands.fetch import fetch_and_print_activities
 from garmin_sync.commands.push import parse_workout, push_workout
 from garmin_sync.commands.weight import print_weight_tag
-from training_sync.config import weightxreps_token_path
+from training_sync.config import weightxreps_exercise_mapping_path, weightxreps_token_path
 from training_sync.use_cases.weightxreps_preview import preview_weightxreps_day_from_vault
 from training_sync.use_cases.weightxreps_push import push_weightxreps_day
 from training_sync.weightxreps.auth import (
@@ -30,6 +30,8 @@ from training_sync.weightxreps.auth import (
     save_tokens,
 )
 from training_sync.weightxreps.client import WeightxRepsClient
+from training_sync.weightxreps.exercise_mapping import load_exercise_mappings
+from training_sync.weightxreps.exercise_resolution import ExerciseResolutionRequired
 
 DEFAULT_VAULT_ROOT = Path("/Users/birrein/Library/Mobile Documents/iCloud~md~obsidian/Documents/brn-vault")
 WEIGHTXREPS_CLIENT_ID = "training-sync"
@@ -189,11 +191,15 @@ def _push_json_argument(client, json_arg: str, handlers: CommandHandlers) -> Non
 
 
 def preview_weightxreps_day(date: str) -> None:
-    rows = preview_weightxreps_day_from_vault(
-        DEFAULT_VAULT_ROOT,
-        date,
-        exercise_ids={},
-    )
+    try:
+        rows = preview_weightxreps_day_from_vault(
+            DEFAULT_VAULT_ROOT,
+            date,
+            exercise_ids={},
+            exercise_mappings=load_exercise_mappings(weightxreps_exercise_mapping_path()),
+        )
+    except ExerciseResolutionRequired as exc:
+        _exit_with_resolution_payload(exc)
     print(json.dumps(rows, ensure_ascii=False, indent=2))
 
 
@@ -204,14 +210,23 @@ def push_weightxreps_day_cli(date: str, yes: bool) -> None:
         sys.exit("Weight x Reps token not found. Run training-sync weightxreps auth first.")
 
     client = build_weightxreps_client(tokens, token_path)
-    result = push_weightxreps_day(
-        DEFAULT_VAULT_ROOT,
-        date,
-        client,
-        exercise_ids={},
-        yes=yes,
-    )
+    try:
+        result = push_weightxreps_day(
+            DEFAULT_VAULT_ROOT,
+            date,
+            client,
+            exercise_ids={},
+            yes=yes,
+            exercise_mappings=load_exercise_mappings(weightxreps_exercise_mapping_path()),
+        )
+    except ExerciseResolutionRequired as exc:
+        _exit_with_resolution_payload(exc)
     print(result)
+
+
+def _exit_with_resolution_payload(exc: ExerciseResolutionRequired) -> None:
+    print(json.dumps(exc.payload(), ensure_ascii=False, indent=2))
+    raise SystemExit(2) from exc
 
 
 def build_weightxreps_client(tokens: TokenSet, token_path: Path) -> WeightxRepsClient:

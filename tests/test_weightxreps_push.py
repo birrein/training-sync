@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from training_sync.use_cases.weightxreps_push import push_weightxreps_day
+from training_sync.weightxreps.exercise_resolution import ExerciseResolutionRequired
 
 
 class FakeWeightxRepsClient:
@@ -110,3 +111,20 @@ def test_push_weightxreps_day_replaces_existing_day_with_yes(tmp_path):
 
     assert result == "replaced"
     assert client.saved_rows is not None
+
+
+def test_push_weightxreps_day_does_not_write_unresolved_exercises(tmp_path):
+    vault = tmp_path / "vault"
+    _write_daily(vault)
+    client = FakeWeightxRepsClient(existing=False)
+
+    with pytest.raises(ExerciseResolutionRequired):
+        push_weightxreps_day(
+            vault,
+            "2026-06-19",
+            client,
+            exercise_ids={},
+            yes=False,
+        )
+
+    assert client.saved_rows is None

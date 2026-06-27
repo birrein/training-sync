@@ -5,6 +5,10 @@ import pytest
 from garmin_sync import cli as legacy_cli
 from training_sync import cli
 from training_sync.weightxreps.auth import TokenSet
+from training_sync.weightxreps.exercise_resolution import (
+    ExerciseResolutionRequired,
+    UnresolvedExercise,
+)
 
 
 def test_training_sync_garmin_fetch_dispatches_to_existing_fetch(monkeypatch):
@@ -198,6 +202,45 @@ def test_weightxreps_client_refresher_saves_new_tokens(monkeypatch, tmp_path):
     assert refreshed_access_token == "fresh-token"
     assert saved == [(tmp_path / "token.json", refreshed_tokens)]
     assert client.access_token == "expired-token"
+
+
+def test_training_sync_weightxreps_push_prints_resolution_json(monkeypatch, tmp_path, capsys):
+    unresolved = UnresolvedExercise(
+        incoming_exercise="Hip Thrust",
+        normalized_name="hip thrust",
+        reason="no_local_mapping",
+        candidates=[],
+    )
+
+    monkeypatch.setattr(
+        cli,
+        "load_tokens",
+        lambda path: TokenSet(
+            access_token="token",
+            refresh_token="refresh",
+            expires_in=3600,
+            token_type="Bearer",
+        ),
+    )
+    monkeypatch.setattr(cli, "weightxreps_token_path", lambda: tmp_path / "token.json")
+    monkeypatch.setattr(cli, "weightxreps_exercise_mapping_path", lambda: tmp_path / "exercises.toml")
+    monkeypatch.setattr(cli, "build_weightxreps_client", lambda tokens, token_path: "client")
+    monkeypatch.setattr(cli, "load_exercise_mappings", lambda path: [])
+    monkeypatch.setattr(
+        cli,
+        "push_weightxreps_day",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            ExerciseResolutionRequired("2026-06-19", [unresolved])
+        ),
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        cli.push_weightxreps_day_cli("2026-06-19", yes=True)
+
+    output = capsys.readouterr().out
+    assert exc.value.code == 2
+    assert '"status": "exercise_resolution_required"' in output
+    assert '"incoming_exercise": "Hip Thrust"' in output
 
 
 def test_training_sync_top_level_help_shows_command_groups(monkeypatch, capsys):

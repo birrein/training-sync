@@ -9,3 +9,7 @@ def config_dir() -> Path:
 
 def weightxreps_token_path() -> Path:
     return config_dir() / "weightxreps-token.json"
+
+
+def weightxreps_exercise_mapping_path() -> Path:
+    return config_dir() / "weightxreps-exercises.toml"
