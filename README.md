@@ -22,10 +22,14 @@ Currently supports:
 
 ## Authentication
 
-The first time you run the script, it will interactively ask for your Garmin Connect Email and Password in your terminal. 
-It will then generate a session token file (`garmin_token.json`) locally. Future executions will reuse this token automatically.
+The first time you run a Garmin command, it will interactively ask for your Garmin Connect email and password in your terminal.
+It will then generate a session token file outside the repo:
 
-> **Warning**: Ensure `garmin_token.json` is added to your `.gitignore`. Do not commit this file as it grants full access to your Garmin account!
+```text
+~/.config/training-sync/garmin-token.json
+```
+
+Future executions reuse this token automatically.
 
 ## Usage
 

@@ -7,6 +7,10 @@ def config_dir() -> Path:
     return Path.home() / ".config" / "training-sync"
 
 
+def garmin_token_path() -> Path:
+    return config_dir() / "garmin-token.json"
+
+
 def weightxreps_token_path() -> Path:
     return config_dir() / "weightxreps-token.json"
 
