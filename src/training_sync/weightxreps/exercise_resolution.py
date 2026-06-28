@@ -36,15 +36,22 @@ class UnresolvedExercise:
     normalized_name: str
     reason: str
     candidates: list[ExerciseCandidate]
+    mapped_weightxreps_id: int | None = None
+    mapped_weightxreps_name: str | None = None
 
     def payload(self) -> dict:
-        return {
+        payload = {
             "incoming_exercise": self.incoming_exercise,
             "normalized_name": self.normalized_name,
             "reason": self.reason,
             "candidates": [candidate.payload() for candidate in self.candidates],
             "allowed_actions": ALLOWED_ACTIONS,
         }
+        if self.mapped_weightxreps_id is not None:
+            payload["mapped_weightxreps_id"] = self.mapped_weightxreps_id
+        if self.mapped_weightxreps_name is not None:
+            payload["mapped_weightxreps_name"] = self.mapped_weightxreps_name
+        return payload
 
 
 class ExerciseResolutionRequired(RuntimeError):
@@ -77,6 +84,7 @@ def resolve_exercise_ids(
         normalize_exercise_name(name): (name, exercise_id)
         for name, exercise_id in remote_exercise_ids.items()
     }
+    remote_ids = set(remote_exercise_ids.values())
 
     resolved: dict[str, int] = {}
     unresolved: list[UnresolvedExercise] = []
@@ -85,7 +93,26 @@ def resolve_exercise_ids(
         mapping = local_index.get(normalized_name)
         if mapping is not None:
             if mapping.weightxreps_id is not None:
-                resolved[exercise_name] = mapping.weightxreps_id
+                if mapping.weightxreps_id in remote_ids:
+                    resolved[exercise_name] = mapping.weightxreps_id
+                    continue
+
+                unresolved.append(
+                    UnresolvedExercise(
+                        incoming_exercise=exercise_name,
+                        normalized_name=normalized_name,
+                        reason="mapped_id_not_in_remote_catalog",
+                        candidates=_candidate_matches_for_names(
+                            [
+                                normalized_name,
+                                normalize_exercise_name(mapping.weightxreps_name),
+                            ],
+                            remote_exercise_ids,
+                        ),
+                        mapped_weightxreps_id=mapping.weightxreps_id,
+                        mapped_weightxreps_name=mapping.weightxreps_name,
+                    )
+                )
                 continue
 
             remote_match = remote_index.get(normalize_exercise_name(mapping.weightxreps_name))
@@ -126,27 +153,42 @@ def _candidate_matches(
     normalized_name: str,
     remote_exercise_ids: dict[str, int],
 ) -> list[ExerciseCandidate]:
+    return _candidate_matches_for_names([normalized_name], remote_exercise_ids)
+
+
+def _candidate_matches_for_names(
+    normalized_names: list[str],
+    remote_exercise_ids: dict[str, int],
+) -> list[ExerciseCandidate]:
     scored: list[tuple[float, ExerciseCandidate]] = []
-    incoming_tokens = set(normalized_name.split())
     for remote_name, exercise_id in remote_exercise_ids.items():
         normalized_remote = normalize_exercise_name(remote_name)
         remote_tokens = set(normalized_remote.split())
-        score = SequenceMatcher(None, normalized_name, normalized_remote).ratio()
-        shared_tokens = incoming_tokens & remote_tokens
-        if score >= 0.65 or (shared_tokens and remote_tokens <= incoming_tokens):
-            reason = "similar_name" if score >= 0.65 else "shared_tokens"
-            scored.append(
-                (
-                    score + (len(shared_tokens) / 10),
-                    ExerciseCandidate(
-                        weightxreps_id=exercise_id,
-                        weightxreps_name=remote_name,
-                        match_reason=reason,
-                    ),
+        for normalized_name in normalized_names:
+            incoming_tokens = set(normalized_name.split())
+            score = SequenceMatcher(None, normalized_name, normalized_remote).ratio()
+            shared_tokens = incoming_tokens & remote_tokens
+            if score >= 0.65 or (shared_tokens and remote_tokens <= incoming_tokens):
+                reason = "similar_name" if score >= 0.65 else "shared_tokens"
+                scored.append(
+                    (
+                        score + (len(shared_tokens) / 10),
+                        ExerciseCandidate(
+                            weightxreps_id=exercise_id,
+                            weightxreps_name=remote_name,
+                            match_reason=reason,
+                        ),
+                    )
                 )
-            )
 
-    return [
-        candidate
-        for _, candidate in sorted(scored, key=lambda item: item[0], reverse=True)[:5]
-    ]
+    candidates: list[ExerciseCandidate] = []
+    seen_ids: set[int] = set()
+    for _, candidate in sorted(scored, key=lambda item: item[0], reverse=True):
+        if candidate.weightxreps_id in seen_ids:
+            continue
+        candidates.append(candidate)
+        seen_ids.add(candidate.weightxreps_id)
+        if len(candidates) == 5:
+            break
+
+    return candidates

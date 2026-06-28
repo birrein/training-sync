@@ -148,6 +148,60 @@ def test_training_sync_weightxreps_preview_dispatches(monkeypatch):
     assert calls == [("preview", "2026-06-19")]
 
 
+def test_preview_weightxreps_day_uses_remote_exercise_ids(monkeypatch, tmp_path, capsys):
+    calls = []
+    tokens = TokenSet(
+        access_token="token",
+        refresh_token="refresh",
+        expires_in=3600,
+        token_type="Bearer",
+    )
+
+    class FakeWeightxRepsClient:
+        def exercise_ids(self, date):
+            calls.append(("exercise_ids", date))
+            return {"Chin Up": 10}
+
+    monkeypatch.setattr(cli, "DEFAULT_VAULT_ROOT", tmp_path / "vault")
+    monkeypatch.setattr(cli, "weightxreps_token_path", lambda: tmp_path / "token.json")
+    monkeypatch.setattr(cli, "weightxreps_exercise_mapping_path", lambda: tmp_path / "exercises.toml")
+    monkeypatch.setattr(cli, "load_tokens", lambda path: tokens)
+    monkeypatch.setattr(
+        cli,
+        "build_weightxreps_client",
+        lambda loaded_tokens, token_path: calls.append(("client", loaded_tokens, token_path))
+        or FakeWeightxRepsClient(),
+    )
+    monkeypatch.setattr(cli, "load_exercise_mappings", lambda path: ["mapping"])
+    monkeypatch.setattr(
+        cli,
+        "preview_weightxreps_day_from_vault",
+        lambda vault_root, date, exercise_ids, exercise_mappings: calls.append(
+            ("preview", vault_root, date, exercise_ids, exercise_mappings)
+        )
+        or [{"eid": 10}],
+    )
+
+    cli.preview_weightxreps_day("2026-06-19")
+
+    assert calls == [
+        ("client", tokens, tmp_path / "token.json"),
+        ("exercise_ids", "2026-06-19"),
+        ("preview", tmp_path / "vault", "2026-06-19", {"Chin Up": 10}, ["mapping"]),
+    ]
+    assert capsys.readouterr().out == '[\n  {\n    "eid": 10\n  }\n]\n'
+
+
+def test_preview_weightxreps_day_requires_auth_tokens(monkeypatch, tmp_path):
+    monkeypatch.setattr(cli, "weightxreps_token_path", lambda: tmp_path / "token.json")
+    monkeypatch.setattr(cli, "load_tokens", lambda path: None)
+
+    with pytest.raises(SystemExit) as exc:
+        cli.preview_weightxreps_day("2026-06-19")
+
+    assert str(exc.value) == "Weight x Reps token not found. Run training-sync weightxreps auth first."
+
+
 def test_training_sync_weightxreps_push_dispatches(monkeypatch):
     calls = []
 

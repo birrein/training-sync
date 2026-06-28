@@ -2,6 +2,7 @@ import pytest
 
 from training_sync.weightxreps.exercise_mapping import (
     DuplicateExerciseAliasError,
+    ExerciseMapping,
     load_exercise_mappings,
 )
 from training_sync.weightxreps.exercise_resolution import (
@@ -98,7 +99,7 @@ aliases = ["Hip Thrust"]
         date="2026-06-20",
         exercise_names=["Hip Thrust"],
         local_mappings=mappings,
-        remote_exercise_ids={"Hip Thrust": 999999},
+        remote_exercise_ids={"Barbell Hip Thrust": 157721, "Hip Thrust": 999999},
     )
 
     assert resolved == {"Hip Thrust": 157721}
@@ -140,3 +141,53 @@ def test_resolve_exercise_ids_raises_structured_payload_for_unknown_name():
             "existing candidate, create it as a new Weight x Reps exercise, or skip this sync?"
         ),
     }
+
+
+def test_mapped_id_missing_from_remote_catalog_requires_refresh():
+    mappings = [
+        ExerciseMapping(
+            weightxreps_name="Barbell Hip Thrust",
+            weightxreps_id=157721,
+            aliases=["Hip Thrust"],
+        )
+    ]
+
+    with pytest.raises(ExerciseResolutionRequired) as exc:
+        resolve_exercise_ids(
+            date="2026-06-20",
+            exercise_names=["Hip Thrust"],
+            local_mappings=mappings,
+            remote_exercise_ids={"Hip Thrust Machine": 157700},
+        )
+
+    payload = exc.value.payload()
+    unresolved = payload["unresolved"][0]
+    assert unresolved["reason"] == "mapped_id_not_in_remote_catalog"
+    assert unresolved["mapped_weightxreps_id"] == 157721
+    assert unresolved["mapped_weightxreps_name"] == "Barbell Hip Thrust"
+    assert unresolved["candidates"] == [
+        {
+            "weightxreps_id": 157700,
+            "weightxreps_name": "Hip Thrust Machine",
+            "match_reason": "similar_name",
+        }
+    ]
+
+
+def test_mapping_without_id_resolves_by_canonical_remote_name():
+    mappings = [
+        ExerciseMapping(
+            weightxreps_name="Barbell Hip Thrust",
+            weightxreps_id=None,
+            aliases=["Hip Thrust"],
+        )
+    ]
+
+    resolved = resolve_exercise_ids(
+        date="2026-06-20",
+        exercise_names=["Hip Thrust"],
+        local_mappings=mappings,
+        remote_exercise_ids={"Barbell Hip Thrust": 157721},
+    )
+
+    assert resolved == {"Hip Thrust": 157721}

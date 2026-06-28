@@ -191,11 +191,17 @@ def _push_json_argument(client, json_arg: str, handlers: CommandHandlers) -> Non
 
 
 def preview_weightxreps_day(date: str) -> None:
+    token_path = weightxreps_token_path()
+    tokens = load_tokens(token_path)
+    if tokens is None:
+        sys.exit("Weight x Reps token not found. Run training-sync weightxreps auth first.")
+
+    client = build_weightxreps_client(tokens, token_path)
     try:
         rows = preview_weightxreps_day_from_vault(
             DEFAULT_VAULT_ROOT,
             date,
-            exercise_ids={},
+            exercise_ids=client.exercise_ids(date),
             exercise_mappings=load_exercise_mappings(weightxreps_exercise_mapping_path()),
         )
     except ExerciseResolutionRequired as exc:
