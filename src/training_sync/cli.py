@@ -148,6 +148,12 @@ def _add_modern_subcommands(parser: argparse.ArgumentParser) -> None:
     )
     weightxreps_create.add_argument("--incoming", required=True)
 
+    weightxreps_resolve = weightxreps_exercise_subparsers.add_parser(
+        "resolve",
+        help="Resolve exercise mappings for a vault date",
+    )
+    weightxreps_resolve.add_argument("date")
+
 
 def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser, handlers: CommandHandlers) -> None:
     if getattr(args, "fetch", None):
@@ -216,6 +222,14 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser, handler
             incoming_name=args.incoming,
         )
         print("created")
+        return
+
+    if (
+        getattr(args, "command", None) == "weightxreps"
+        and args.weightxreps_command == "exercises"
+        and args.weightxreps_exercise_command == "resolve"
+    ):
+        preview_weightxreps_day(args.date)
         return
 
     parser.print_help()

@@ -293,6 +293,60 @@ def test_training_sync_weightxreps_exercises_create_dispatches(monkeypatch, tmp_
     assert calls == [(tmp_path / "map.toml", "New Exercise Name")]
 
 
+def test_training_sync_weightxreps_exercises_resolve_prints_resolution_json(monkeypatch, tmp_path, capsys):
+    class FakeWeightxRepsClient:
+        def exercise_ids(self, date):
+            return {}
+
+    monkeypatch.setattr(cli, "DEFAULT_VAULT_ROOT", tmp_path / "vault")
+    monkeypatch.setattr(cli, "weightxreps_token_path", lambda: tmp_path / "token.json")
+    monkeypatch.setattr(cli, "weightxreps_exercise_mapping_path", lambda: tmp_path / "map.toml")
+    monkeypatch.setattr(
+        cli,
+        "load_tokens",
+        lambda path: TokenSet(
+            access_token="token",
+            refresh_token="refresh",
+            expires_in=3600,
+            token_type="Bearer",
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "build_weightxreps_client",
+        lambda tokens, token_path: FakeWeightxRepsClient(),
+    )
+    monkeypatch.setattr(cli, "load_exercise_mappings", lambda path: [])
+    monkeypatch.setattr(
+        cli,
+        "preview_weightxreps_day_from_vault",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            ExerciseResolutionRequired(
+                "2026-06-20",
+                [
+                    UnresolvedExercise(
+                        incoming_exercise="Hip Thrust",
+                        normalized_name="hip thrust",
+                        reason="no_local_mapping",
+                        candidates=[],
+                    )
+                ],
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["training-sync", "weightxreps", "exercises", "resolve", "2026-06-20"],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+
+    assert exc.value.code == 2
+    assert '"status": "exercise_resolution_required"' in capsys.readouterr().out
+
+
 def test_weightxreps_client_refresher_saves_new_tokens(monkeypatch, tmp_path):
     saved = []
     initial_tokens = TokenSet(
