@@ -62,7 +62,7 @@ def test_build_jeditor_rows_can_create_explicit_new_exercises():
         },
         {"newExercise": "New Lift"},
         {
-            "eid": 0,
+            "eid": -1,
             "erows": [{"w": {"v": 10.0, "lb": 0}, "r": 8, "s": 1, "type": 0}],
         },
     ]

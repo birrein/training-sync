@@ -159,7 +159,27 @@ def test_resolution_payload_includes_catalog_source():
     assert exc.value.payload()["catalog_source"] == "partial_jeditor"
 
 
-def test_mapped_id_missing_from_remote_catalog_requires_refresh():
+def test_mapped_id_resolves_under_partial_jeditor_when_remote_ids_are_empty():
+    mappings = [
+        ExerciseMapping(
+            weightxreps_name="Barbell Hip Thrust",
+            weightxreps_id=157721,
+            aliases=["Hip Thrust"],
+        )
+    ]
+
+    resolved = resolve_exercise_ids(
+        date="2026-06-20",
+        exercise_names=["Hip Thrust"],
+        local_mappings=mappings,
+        remote_exercise_ids={},
+        catalog_source="partial_jeditor",
+    )
+
+    assert resolved == {"Hip Thrust": 157721}
+
+
+def test_mapped_id_missing_from_full_remote_catalog_requires_refresh():
     mappings = [
         ExerciseMapping(
             weightxreps_name="Barbell Hip Thrust",
@@ -174,6 +194,7 @@ def test_mapped_id_missing_from_remote_catalog_requires_refresh():
             exercise_names=["Hip Thrust"],
             local_mappings=mappings,
             remote_exercise_ids={"Hip Thrust Machine": 157700},
+            catalog_source="full_catalog",
         )
 
     payload = exc.value.payload()
@@ -209,7 +230,7 @@ def test_mapping_without_id_resolves_by_canonical_remote_name():
     assert resolved == {"Hip Thrust": 157721}
 
 
-def test_create_if_missing_returns_new_exercise_marker():
+def test_create_if_missing_returns_new_exercise_marker_with_full_catalog():
     mappings = [
         ExerciseMapping(
             weightxreps_name="New Exercise Name",
@@ -224,9 +245,34 @@ def test_create_if_missing_returns_new_exercise_marker():
         exercise_names=["New Exercise Name"],
         local_mappings=mappings,
         remote_exercise_ids={},
+        catalog_source="full_catalog",
     )
 
     assert resolved == {"New Exercise Name": None}
+
+
+def test_create_if_missing_requires_full_catalog():
+    mappings = [
+        ExerciseMapping(
+            weightxreps_name="New Exercise Name",
+            weightxreps_id=None,
+            aliases=["New Exercise Name"],
+            create_if_missing=True,
+        )
+    ]
+
+    with pytest.raises(ExerciseResolutionRequired) as exc:
+        resolve_exercise_ids(
+            date="2026-06-20",
+            exercise_names=["New Exercise Name"],
+            local_mappings=mappings,
+            remote_exercise_ids={},
+            catalog_source="partial_jeditor",
+        )
+
+    payload = exc.value.payload()
+    assert payload["catalog_source"] == "partial_jeditor"
+    assert payload["unresolved"][0]["reason"] == "create_requires_full_catalog"
 
 
 def test_create_if_missing_with_existing_id_resolves_to_id():

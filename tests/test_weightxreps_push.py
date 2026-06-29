@@ -176,7 +176,7 @@ def test_push_weightxreps_day_prefers_explicit_exercise_ids_over_catalog(tmp_pat
 def test_push_weightxreps_day_creates_explicitly_mapped_new_exercise(tmp_path):
     vault = tmp_path / "vault"
     _write_daily(vault)
-    client = FakeWeightxRepsClient(existing=False)
+    client = FakeWeightxRepsClient(existing=False, exercise_catalog={})
 
     result = push_weightxreps_day(
         vault,
@@ -192,15 +192,46 @@ def test_push_weightxreps_day_creates_explicitly_mapped_new_exercise(tmp_path):
                 create_if_missing=True,
             )
         ],
+        user_id=12345,
     )
 
     assert result == "saved"
+    assert client.exercise_catalog_calls == [12345]
+    assert client.exercise_id_calls == []
     assert client.saved_rows[1:3] == [
         {
             "on": "2026-06-19"
         },
         {"newExercise": "Chin Up"},
     ]
+
+
+def test_push_weightxreps_day_does_not_create_with_partial_jeditor_catalog(tmp_path):
+    vault = tmp_path / "vault"
+    _write_daily(vault)
+    client = FakeWeightxRepsClient(existing=False)
+
+    with pytest.raises(ExerciseResolutionRequired) as exc:
+        push_weightxreps_day(
+            vault,
+            "2026-06-19",
+            client,
+            exercise_ids={},
+            yes=False,
+            exercise_mappings=[
+                ExerciseMapping(
+                    weightxreps_name="Chin Up",
+                    weightxreps_id=None,
+                    aliases=["Chin Up"],
+                    create_if_missing=True,
+                )
+            ],
+        )
+
+    payload = exc.value.payload()
+    assert payload["catalog_source"] == "partial_jeditor"
+    assert payload["unresolved"][0]["reason"] == "create_requires_full_catalog"
+    assert client.saved_rows is None
 
 
 def test_push_weightxreps_day_requires_yes_when_remote_day_exists(tmp_path):

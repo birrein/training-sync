@@ -16,7 +16,7 @@ def build_jeditor_rows(
     if day.body_weight_kg is not None:
         rows.append({"bw": day.body_weight_kg, "lb": 0})
 
-    new_exercise_index = 0
+    new_exercise_index = 1
     rows.append({"on": day.date})
     for exercise in day.exercises:
         exercise_row: dict[str, Any]

@@ -101,7 +101,10 @@ def resolve_exercise_ids(
         mapping = local_index.get(normalized_name)
         if mapping is not None:
             if mapping.weightxreps_id is not None:
-                if mapping.weightxreps_id in remote_ids:
+                if (
+                    catalog_source == "partial_jeditor"
+                    or mapping.weightxreps_id in remote_ids
+                ):
                     resolved[exercise_name] = mapping.weightxreps_id
                     continue
 
@@ -129,7 +132,25 @@ def resolve_exercise_ids(
                 continue
 
             if mapping.create_if_missing:
-                resolved[exercise_name] = None
+                if catalog_source == "full_catalog":
+                    resolved[exercise_name] = None
+                    continue
+
+                unresolved.append(
+                    UnresolvedExercise(
+                        incoming_exercise=exercise_name,
+                        normalized_name=normalized_name,
+                        reason="create_requires_full_catalog",
+                        candidates=_candidate_matches_for_names(
+                            [
+                                normalized_name,
+                                normalize_exercise_name(mapping.weightxreps_name),
+                            ],
+                            remote_exercise_ids,
+                        ),
+                        mapped_weightxreps_name=mapping.weightxreps_name,
+                    )
+                )
                 continue
 
         remote_match = remote_index.get(normalized_name)
