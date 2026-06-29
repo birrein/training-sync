@@ -209,12 +209,31 @@ def test_training_sync_weightxreps_push_dispatches(monkeypatch):
     monkeypatch.setattr(
         cli,
         "push_weightxreps_day_cli",
-        lambda date, yes: calls.append(("push", date, yes)),
+        lambda date, yes, user_id=None: calls.append(("push", date, yes, user_id)),
     )
 
     cli.main()
 
-    assert calls == [("push", "2026-06-19", True)]
+    assert calls == [("push", "2026-06-19", True, None)]
+
+
+def test_training_sync_weightxreps_push_passes_user_id_option(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["training-sync", "weightxreps", "push", "2026-06-19", "--yes", "--user-id", "12345"],
+    )
+    monkeypatch.setattr(
+        cli,
+        "push_weightxreps_day_cli",
+        lambda date, yes, user_id=None: calls.append(("push", date, yes, user_id)),
+    )
+
+    cli.main()
+
+    assert calls == [("push", "2026-06-19", True, 12345)]
 
 
 def test_training_sync_weightxreps_auth_dispatches(monkeypatch):
@@ -414,6 +433,77 @@ def test_training_sync_weightxreps_push_prints_resolution_json(monkeypatch, tmp_
     assert exc.value.code == 2
     assert '"status": "exercise_resolution_required"' in output
     assert '"incoming_exercise": "Hip Thrust"' in output
+
+
+def test_push_weightxreps_day_cli_passes_explicit_user_id(monkeypatch, tmp_path):
+    calls = []
+
+    monkeypatch.setattr(
+        cli,
+        "load_tokens",
+        lambda path: TokenSet(
+            access_token="token",
+            refresh_token="refresh",
+            expires_in=3600,
+            token_type="Bearer",
+        ),
+    )
+    monkeypatch.setattr(cli, "weightxreps_token_path", lambda: tmp_path / "token.json")
+    monkeypatch.setattr(cli, "weightxreps_exercise_mapping_path", lambda: tmp_path / "exercises.toml")
+    monkeypatch.setattr(cli, "build_weightxreps_client", lambda tokens, token_path: "client")
+    monkeypatch.setattr(cli, "load_exercise_mappings", lambda path: ["mapping"])
+    monkeypatch.setattr(
+        cli,
+        "push_weightxreps_day",
+        lambda *args, **kwargs: calls.append((args, kwargs)) or "saved",
+    )
+
+    cli.push_weightxreps_day_cli("2026-06-19", yes=True, user_id=12345)
+
+    assert calls == [
+        (
+            (
+                cli.DEFAULT_VAULT_ROOT,
+                "2026-06-19",
+                "client",
+            ),
+            {
+                "exercise_ids": {},
+                "yes": True,
+                "exercise_mappings": ["mapping"],
+                "user_id": 12345,
+            },
+        )
+    ]
+
+
+def test_push_weightxreps_day_cli_uses_env_user_id_fallback(monkeypatch, tmp_path):
+    calls = []
+
+    monkeypatch.setenv("WEIGHTXREPS_USER_ID", "67890")
+    monkeypatch.setattr(
+        cli,
+        "load_tokens",
+        lambda path: TokenSet(
+            access_token="token",
+            refresh_token="refresh",
+            expires_in=3600,
+            token_type="Bearer",
+        ),
+    )
+    monkeypatch.setattr(cli, "weightxreps_token_path", lambda: tmp_path / "token.json")
+    monkeypatch.setattr(cli, "weightxreps_exercise_mapping_path", lambda: tmp_path / "exercises.toml")
+    monkeypatch.setattr(cli, "build_weightxreps_client", lambda tokens, token_path: "client")
+    monkeypatch.setattr(cli, "load_exercise_mappings", lambda path: ["mapping"])
+    monkeypatch.setattr(
+        cli,
+        "push_weightxreps_day",
+        lambda *args, **kwargs: calls.append(kwargs) or "saved",
+    )
+
+    cli.push_weightxreps_day_cli("2026-06-19", yes=True)
+
+    assert calls[0]["user_id"] == 67890
 
 
 def test_training_sync_top_level_help_shows_command_groups(monkeypatch, capsys):

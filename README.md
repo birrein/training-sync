@@ -103,6 +103,26 @@ Push a day, replacing existing Weight x Reps content only when confirmed:
 training-sync weightxreps push 2026-06-19 --yes
 ```
 
+When pushing a day that intentionally creates new exercises, provide your
+Weight x Reps user id so the command can load the full exercise catalog before
+writing:
+
+```bash
+training-sync weightxreps push 2026-06-19 --yes --user-id 12345
+```
+
+You can also set it once outside the repo:
+
+```bash
+export WEIGHTXREPS_USER_ID=12345
+```
+
+or store only the numeric id in:
+
+```text
+~/.config/training-sync/weightxreps-user-id
+```
+
 Resolve a day before pushing:
 
 ```bash
@@ -158,6 +178,9 @@ create_if_missing = true
 Unknown exercises are not created automatically. If an exercise cannot be
 resolved from the local mapping or the available Weight x Reps exercise IDs,
 the command prints structured JSON with candidates and exits before writing.
+Mappings with `create_if_missing = true` still require the full catalog from a
+configured user id; without one, pushes keep using the safe partial JEditor
+catalog and reject creation before writing.
 
 Current limitation: Weight x Reps pushes only support standard `WEIGHT_X_REPS`
 sets (`type: 0`). Time-based or distance-based exercise rows will need an

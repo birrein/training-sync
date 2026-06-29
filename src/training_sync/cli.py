@@ -17,7 +17,11 @@ from garmin_sync.auth import get_client
 from garmin_sync.commands.fetch import fetch_and_print_activities
 from garmin_sync.commands.push import parse_workout, push_workout
 from garmin_sync.commands.weight import print_weight_tag
-from training_sync.config import weightxreps_exercise_mapping_path, weightxreps_token_path
+from training_sync.config import (
+    load_weightxreps_user_id,
+    weightxreps_exercise_mapping_path,
+    weightxreps_token_path,
+)
 from training_sync.use_cases.weightxreps_preview import preview_weightxreps_day_from_vault
 from training_sync.use_cases.weightxreps_push import push_weightxreps_day
 from training_sync.weightxreps.auth import (
@@ -125,6 +129,7 @@ def _add_modern_subcommands(parser: argparse.ArgumentParser) -> None:
     weightxreps_push = weightxreps_subparsers.add_parser("push", help="Push Weight x Reps rows")
     weightxreps_push.add_argument("date")
     weightxreps_push.add_argument("--yes", action="store_true", help="Replace existing Weight x Reps content")
+    weightxreps_push.add_argument("--user-id", type=int, help="Weight x Reps user id for full exercise catalog lookup")
 
     weightxreps_exercises = weightxreps_subparsers.add_parser(
         "exercises",
@@ -195,7 +200,7 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser, handler
         return
 
     if getattr(args, "command", None) == "weightxreps" and args.weightxreps_command == "push":
-        push_weightxreps_day_cli(args.date, yes=args.yes)
+        push_weightxreps_day_cli(args.date, yes=args.yes, user_id=args.user_id)
         return
 
     if (
@@ -271,11 +276,17 @@ def preview_weightxreps_day(date: str) -> None:
     print(json.dumps(rows, ensure_ascii=False, indent=2))
 
 
-def push_weightxreps_day_cli(date: str, yes: bool) -> None:
+def push_weightxreps_day_cli(date: str, yes: bool, user_id: int | None = None) -> None:
     token_path = weightxreps_token_path()
     tokens = load_tokens(token_path)
     if tokens is None:
         sys.exit("Weight x Reps token not found. Run training-sync weightxreps auth first.")
+
+    if user_id is None:
+        try:
+            user_id = load_weightxreps_user_id()
+        except ValueError as exc:
+            sys.exit(str(exc))
 
     client = build_weightxreps_client(tokens, token_path)
     try:
@@ -286,6 +297,7 @@ def push_weightxreps_day_cli(date: str, yes: bool) -> None:
             exercise_ids={},
             yes=yes,
             exercise_mappings=load_exercise_mappings(weightxreps_exercise_mapping_path()),
+            user_id=user_id,
         )
     except ExerciseResolutionRequired as exc:
         _exit_with_resolution_payload(exc)
