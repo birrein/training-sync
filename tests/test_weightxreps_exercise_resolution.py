@@ -119,6 +119,7 @@ def test_resolve_exercise_ids_raises_structured_payload_for_unknown_name():
     assert exc.value.payload() == {
         "status": "exercise_resolution_required",
         "date": "2026-06-20",
+        "catalog_source": "unknown",
         "unresolved": [
             {
                 "incoming_exercise": "Barbell Hip Thrust with Bench",
@@ -143,6 +144,19 @@ def test_resolve_exercise_ids_raises_structured_payload_for_unknown_name():
             "existing candidate, create it as a new Weight x Reps exercise, or skip this sync?"
         ),
     }
+
+
+def test_resolution_payload_includes_catalog_source():
+    with pytest.raises(ExerciseResolutionRequired) as exc:
+        resolve_exercise_ids(
+            date="2026-06-20",
+            exercise_names=["Unknown Lift"],
+            local_mappings=[],
+            remote_exercise_ids={},
+            catalog_source="partial_jeditor",
+        )
+
+    assert exc.value.payload()["catalog_source"] == "partial_jeditor"
 
 
 def test_mapped_id_missing_from_remote_catalog_requires_refresh():

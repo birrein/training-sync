@@ -62,9 +62,11 @@ def test_preview_weightxreps_day_requires_exercise_resolution_before_new_exercis
         encoding="utf-8",
     )
 
-    with pytest.raises(ExerciseResolutionRequired):
+    with pytest.raises(ExerciseResolutionRequired) as exc:
         preview_weightxreps_day_from_vault(
             vault,
             "2026-06-19",
             exercise_ids={"Barbell Hip Thrust": 157721},
         )
+
+    assert exc.value.payload()["catalog_source"] == "partial_jeditor"

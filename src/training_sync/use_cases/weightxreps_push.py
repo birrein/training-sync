@@ -15,16 +15,20 @@ def push_weightxreps_day(
     exercise_mappings: list[ExerciseMapping] | None = None,
     user_id: int | None = None,
 ) -> str:
+    catalog_source = "explicit" if exercise_ids else "unknown"
     if not exercise_ids and user_id is not None:
         exercise_ids = client.exercise_catalog(user_id)
+        catalog_source = "full_catalog"
     elif not exercise_ids and hasattr(client, "exercise_ids"):
         exercise_ids = client.exercise_ids(date)
+        catalog_source = "partial_jeditor"
 
     rows = preview_weightxreps_day_from_vault(
         vault_root,
         date,
         exercise_ids,
         exercise_mappings=exercise_mappings,
+        catalog_source=catalog_source,
     )
     exists = client.day_has_content(date)
     if exists and not yes:

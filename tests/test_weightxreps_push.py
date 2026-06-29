@@ -118,7 +118,7 @@ def test_push_weightxreps_day_treats_empty_user_catalog_as_authoritative(tmp_pat
         exercise_catalog={},
     )
 
-    with pytest.raises(ExerciseResolutionRequired):
+    with pytest.raises(ExerciseResolutionRequired) as exc:
         push_weightxreps_day(
             vault,
             "2026-06-19",
@@ -128,7 +128,28 @@ def test_push_weightxreps_day_treats_empty_user_catalog_as_authoritative(tmp_pat
             user_id=12345,
         )
 
+    assert exc.value.payload()["catalog_source"] == "full_catalog"
     assert client.exercise_catalog_calls == [12345]
+    assert client.exercise_id_calls == []
+    assert client.saved_rows is None
+
+
+def test_push_weightxreps_day_reports_explicit_catalog_source_for_explicit_ids(tmp_path):
+    vault = tmp_path / "vault"
+    _write_daily(vault)
+    client = FakeWeightxRepsClient(existing=False)
+
+    with pytest.raises(ExerciseResolutionRequired) as exc:
+        push_weightxreps_day(
+            vault,
+            "2026-06-19",
+            client,
+            exercise_ids={"Bench Press": 10},
+            yes=False,
+        )
+
+    assert exc.value.payload()["catalog_source"] == "explicit"
+    assert client.exercise_catalog_calls == []
     assert client.exercise_id_calls == []
     assert client.saved_rows is None
 
@@ -219,7 +240,7 @@ def test_push_weightxreps_day_does_not_write_unresolved_exercises(tmp_path):
     _write_daily(vault)
     client = FakeWeightxRepsClient(existing=False)
 
-    with pytest.raises(ExerciseResolutionRequired):
+    with pytest.raises(ExerciseResolutionRequired) as exc:
         push_weightxreps_day(
             vault,
             "2026-06-19",
@@ -228,4 +249,5 @@ def test_push_weightxreps_day_does_not_write_unresolved_exercises(tmp_path):
             yes=False,
         )
 
+    assert exc.value.payload()["catalog_source"] == "partial_jeditor"
     assert client.saved_rows is None

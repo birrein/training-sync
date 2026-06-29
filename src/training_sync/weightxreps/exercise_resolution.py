@@ -55,9 +55,15 @@ class UnresolvedExercise:
 
 
 class ExerciseResolutionRequired(RuntimeError):
-    def __init__(self, date: str, unresolved: list[UnresolvedExercise]) -> None:
+    def __init__(
+        self,
+        date: str,
+        unresolved: list[UnresolvedExercise],
+        catalog_source: str = "unknown",
+    ) -> None:
         self.date = date
         self.unresolved = unresolved
+        self.catalog_source = catalog_source
         super().__init__("Weight x Reps exercise resolution required")
 
     def payload(self) -> dict:
@@ -65,6 +71,7 @@ class ExerciseResolutionRequired(RuntimeError):
         return {
             "status": "exercise_resolution_required",
             "date": self.date,
+            "catalog_source": self.catalog_source,
             "unresolved": [exercise.payload() for exercise in self.unresolved],
             "suggested_agent_question": (
                 f"How should I resolve '{first}': map it to an existing candidate, "
@@ -78,6 +85,7 @@ def resolve_exercise_ids(
     exercise_names: list[str],
     local_mappings: list[ExerciseMapping],
     remote_exercise_ids: dict[str, int],
+    catalog_source: str = "unknown",
 ) -> dict[str, int | None]:
     local_index = _local_alias_index(local_mappings)
     remote_index = {
@@ -139,7 +147,7 @@ def resolve_exercise_ids(
         )
 
     if unresolved:
-        raise ExerciseResolutionRequired(date, unresolved)
+        raise ExerciseResolutionRequired(date, unresolved, catalog_source)
 
     return resolved
 

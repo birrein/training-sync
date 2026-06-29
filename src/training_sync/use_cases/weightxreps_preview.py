@@ -16,6 +16,7 @@ def preview_weightxreps_day_from_vault(
     date: str,
     exercise_ids: dict[str, int],
     exercise_mappings: list[ExerciseMapping] | None = None,
+    catalog_source: str = "partial_jeditor",
 ) -> list[dict[str, Any]]:
     parsed = load_weightxreps_day_from_vault(vault_root, date)
     resolved_exercise_ids = resolve_exercise_ids(
@@ -23,6 +24,7 @@ def preview_weightxreps_day_from_vault(
         exercise_names=[exercise.name for exercise in parsed.exercises],
         local_mappings=exercise_mappings or [],
         remote_exercise_ids=exercise_ids,
+        catalog_source=catalog_source,
     )
     return build_jeditor_rows(parsed, resolved_exercise_ids)
 
