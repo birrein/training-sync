@@ -228,6 +228,45 @@ def test_training_sync_weightxreps_auth_dispatches(monkeypatch):
     assert calls == [("auth",)]
 
 
+def test_training_sync_weightxreps_exercises_map_dispatches(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(cli, "weightxreps_exercise_mapping_path", lambda: tmp_path / "map.toml")
+    monkeypatch.setattr(
+        cli,
+        "add_alias_mapping",
+        lambda path, incoming_name, weightxreps_name, weightxreps_id: calls.append(
+            (path, incoming_name, weightxreps_name, weightxreps_id)
+        ),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "training-sync",
+            "weightxreps",
+            "exercises",
+            "map",
+            "--incoming",
+            "Barbell Hip Thrust with Bench",
+            "--existing-name",
+            "Barbell Hip Thrust",
+            "--existing-id",
+            "157721",
+        ],
+    )
+
+    cli.main()
+
+    assert calls == [
+        (
+            tmp_path / "map.toml",
+            "Barbell Hip Thrust with Bench",
+            "Barbell Hip Thrust",
+            157721,
+        )
+    ]
+
+
 def test_weightxreps_client_refresher_saves_new_tokens(monkeypatch, tmp_path):
     saved = []
     initial_tokens = TokenSet(

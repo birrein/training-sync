@@ -30,7 +30,7 @@ from training_sync.weightxreps.auth import (
     save_tokens,
 )
 from training_sync.weightxreps.client import WeightxRepsClient
-from training_sync.weightxreps.exercise_mapping import load_exercise_mappings
+from training_sync.weightxreps.exercise_mapping import add_alias_mapping, load_exercise_mappings
 from training_sync.weightxreps.exercise_resolution import ExerciseResolutionRequired
 
 DEFAULT_VAULT_ROOT = Path("/Users/birrein/Library/Mobile Documents/iCloud~md~obsidian/Documents/brn-vault")
@@ -126,6 +126,22 @@ def _add_modern_subcommands(parser: argparse.ArgumentParser) -> None:
     weightxreps_push.add_argument("date")
     weightxreps_push.add_argument("--yes", action="store_true", help="Replace existing Weight x Reps content")
 
+    weightxreps_exercises = weightxreps_subparsers.add_parser(
+        "exercises",
+        help="Manage Weight x Reps exercise mappings",
+    )
+    weightxreps_exercise_subparsers = weightxreps_exercises.add_subparsers(
+        dest="weightxreps_exercise_command",
+    )
+
+    weightxreps_map = weightxreps_exercise_subparsers.add_parser(
+        "map",
+        help="Map an incoming exercise to an existing Weight x Reps exercise",
+    )
+    weightxreps_map.add_argument("--incoming", required=True)
+    weightxreps_map.add_argument("--existing-name", required=True)
+    weightxreps_map.add_argument("--existing-id", required=True, type=int)
+
 
 def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser, handlers: CommandHandlers) -> None:
     if getattr(args, "fetch", None):
@@ -168,6 +184,20 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser, handler
 
     if getattr(args, "command", None) == "weightxreps" and args.weightxreps_command == "push":
         push_weightxreps_day_cli(args.date, yes=args.yes)
+        return
+
+    if (
+        getattr(args, "command", None) == "weightxreps"
+        and args.weightxreps_command == "exercises"
+        and args.weightxreps_exercise_command == "map"
+    ):
+        add_alias_mapping(
+            weightxreps_exercise_mapping_path(),
+            incoming_name=args.incoming,
+            weightxreps_name=args.existing_name,
+            weightxreps_id=args.existing_id,
+        )
+        print("mapped")
         return
 
     parser.print_help()
