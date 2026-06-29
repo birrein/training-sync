@@ -64,10 +64,43 @@ def add_alias_mapping(
     path.chmod(0o600)
 
 
+def add_create_mapping(path: Path, incoming_name: str) -> None:
+    mappings = load_exercise_mappings(path)
+    normalized_incoming_name = normalize_exercise_name(incoming_name)
+    for mapping in mappings:
+        if mapping.create_if_missing and _mapping_has_normalized_name(
+            mapping,
+            normalized_incoming_name,
+        ):
+            return
+
+    updated = [
+        *mappings,
+        ExerciseMapping(
+            weightxreps_name=incoming_name,
+            weightxreps_id=None,
+            aliases=[incoming_name],
+            create_if_missing=True,
+        ),
+    ]
+    _validate_unique_aliases(updated)
+    _backup_if_exists(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_dump_exercise_mappings(updated), encoding="utf-8")
+    path.chmod(0o600)
+
+
 def normalize_exercise_name(name: str) -> str:
     without_hash = name.strip().removeprefix("#").strip().lower()
     without_punctuation = re.sub(r"[^\w\s]", " ", without_hash)
     return re.sub(r"\s+", " ", without_punctuation).strip()
+
+
+def _mapping_has_normalized_name(mapping: ExerciseMapping, normalized_name: str) -> bool:
+    return any(
+        normalize_exercise_name(name) == normalized_name
+        for name in [mapping.weightxreps_name, *mapping.aliases]
+    )
 
 
 def _merge_alias(

@@ -30,7 +30,7 @@ from training_sync.weightxreps.auth import (
     save_tokens,
 )
 from training_sync.weightxreps.client import WeightxRepsClient
-from training_sync.weightxreps.exercise_mapping import add_alias_mapping, load_exercise_mappings
+from training_sync.weightxreps.exercise_mapping import add_alias_mapping, add_create_mapping, load_exercise_mappings
 from training_sync.weightxreps.exercise_resolution import ExerciseResolutionRequired
 
 DEFAULT_VAULT_ROOT = Path("/Users/birrein/Library/Mobile Documents/iCloud~md~obsidian/Documents/brn-vault")
@@ -142,6 +142,12 @@ def _add_modern_subcommands(parser: argparse.ArgumentParser) -> None:
     weightxreps_map.add_argument("--existing-name", required=True)
     weightxreps_map.add_argument("--existing-id", required=True, type=int)
 
+    weightxreps_create = weightxreps_exercise_subparsers.add_parser(
+        "create",
+        help="Allow creating a new Weight x Reps exercise",
+    )
+    weightxreps_create.add_argument("--incoming", required=True)
+
 
 def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser, handlers: CommandHandlers) -> None:
     if getattr(args, "fetch", None):
@@ -198,6 +204,18 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser, handler
             weightxreps_id=args.existing_id,
         )
         print("mapped")
+        return
+
+    if (
+        getattr(args, "command", None) == "weightxreps"
+        and args.weightxreps_command == "exercises"
+        and args.weightxreps_exercise_command == "create"
+    ):
+        add_create_mapping(
+            weightxreps_exercise_mapping_path(),
+            incoming_name=args.incoming,
+        )
+        print("created")
         return
 
     parser.print_help()

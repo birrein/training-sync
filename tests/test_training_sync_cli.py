@@ -267,6 +267,32 @@ def test_training_sync_weightxreps_exercises_map_dispatches(monkeypatch, tmp_pat
     ]
 
 
+def test_training_sync_weightxreps_exercises_create_dispatches(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(cli, "weightxreps_exercise_mapping_path", lambda: tmp_path / "map.toml")
+    monkeypatch.setattr(
+        cli,
+        "add_create_mapping",
+        lambda path, incoming_name: calls.append((path, incoming_name)),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "training-sync",
+            "weightxreps",
+            "exercises",
+            "create",
+            "--incoming",
+            "New Exercise Name",
+        ],
+    )
+
+    cli.main()
+
+    assert calls == [(tmp_path / "map.toml", "New Exercise Name")]
+
+
 def test_weightxreps_client_refresher_saves_new_tokens(monkeypatch, tmp_path):
     saved = []
     initial_tokens = TokenSet(
