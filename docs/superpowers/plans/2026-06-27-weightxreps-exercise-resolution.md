@@ -24,6 +24,27 @@ The first safe slice was implemented in commit `fdeecf1 feat(weightxreps): requi
 
 Remaining tasks complete the original spec in smaller commits.
 
+## Execution Status
+
+Completed on branch `codex/complete-weightxreps-exercise-resolution`.
+
+- [x] Task 3: Added controlled `create_if_missing` resolution with explicit `newExercise` rows only after local opt-in.
+- [x] Task 4: Added deterministic TOML mapping writers with backup creation and user-only permissions.
+- [x] Task 5: Added `training-sync weightxreps exercises map`.
+- [x] Task 6: Added `training-sync weightxreps exercises create`.
+- [x] Task 7: Added `training-sync weightxreps exercises resolve`.
+- [x] Task 8: Exposed the Weight x Reps full exercise catalog and wired push to use it when a user id is available.
+- [x] Task 9: Added `catalog_source` to structured resolution output.
+- [x] Task 10: Documented the agent resolution flow in `README.md`.
+- [x] Task 11: Verified focused tests, full test suite, whitespace, manual unresolved dry-run, and final code review.
+
+Final verification evidence:
+
+- `python -m pytest -q` passed with `93 passed`.
+- `git diff --check` passed.
+- Manual temp-vault dry-run returned `exercise_resolution_required` with `catalog_source: partial_jeditor` and exit status `2`.
+- Final review approved after fixes for partial catalog creation, partial catalog stale-ID handling, negative temporary new-exercise IDs, and CLI user-id pass-through.
+
 ---
 
 ## File Structure
