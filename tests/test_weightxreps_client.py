@@ -145,6 +145,29 @@ def test_exercise_ids_reads_existing_editor_exercises():
     }
 
 
+def test_exercise_catalog_reads_remote_exercise_names():
+    session = FakeSession(
+        {
+            "data": {
+                "getExercises": [
+                    {"id": "157721", "name": "Barbell Hip Thrust"},
+                    {"id": "158078", "name": "Hanging Knee Raise"},
+                ]
+            }
+        }
+    )
+    client = WeightxRepsClient(access_token="token-123", session=session)
+
+    catalog = client.exercise_catalog(user_id=12345)
+
+    assert catalog == {
+        "Barbell Hip Thrust": 157721,
+        "Hanging Knee Raise": 158078,
+    }
+    assert "getExercises" in session.calls[0][1]["query"]
+    assert session.calls[0][1]["variables"] == {"uid": 12345}
+
+
 def test_verify_day_requires_saved_exercise_blocks_with_weight_x_reps_type():
     session = FakeSession(
         {

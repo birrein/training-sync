@@ -47,6 +47,15 @@ query JEditorDay($ymd: YMD!, $range: Int) {
 }
 """
 
+EXERCISE_CATALOG_QUERY = """
+query ExerciseCatalog($uid: Int!) {
+  getExercises(uid: $uid) {
+    id
+    name
+  }
+}
+"""
+
 
 class WeightxRepsClient:
     def __init__(
@@ -108,6 +117,14 @@ class WeightxRepsClient:
             if name and exercise_id:
                 ids[name] = int(exercise_id)
         return ids
+
+    def exercise_catalog(self, user_id: int) -> dict[str, int]:
+        data = self.graphql(EXERCISE_CATALOG_QUERY, {"uid": user_id})
+        return {
+            exercise["name"]: int(exercise["id"])
+            for exercise in data.get("getExercises") or []
+            if exercise.get("name") and exercise.get("id")
+        }
 
     def verify_day(self, date: str, rows: list[dict[str, Any]]) -> bool:
         day = self.jeditor_day(date)

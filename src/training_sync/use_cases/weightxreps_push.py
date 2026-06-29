@@ -13,8 +13,11 @@ def push_weightxreps_day(
     exercise_ids: dict[str, int],
     yes: bool,
     exercise_mappings: list[ExerciseMapping] | None = None,
+    user_id: int | None = None,
 ) -> str:
-    if not exercise_ids and hasattr(client, "exercise_ids"):
+    if not exercise_ids and user_id is not None:
+        exercise_ids = client.exercise_catalog(user_id)
+    elif not exercise_ids and hasattr(client, "exercise_ids"):
         exercise_ids = client.exercise_ids(date)
 
     rows = preview_weightxreps_day_from_vault(
