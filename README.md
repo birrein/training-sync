@@ -103,6 +103,28 @@ Push a day, replacing existing Weight x Reps content only when confirmed:
 training-sync weightxreps push 2026-06-19 --yes
 ```
 
+Resolve a day before pushing:
+
+```bash
+training-sync weightxreps exercises resolve 2026-06-20
+```
+
+Map an incoming exercise to an existing Weight x Reps exercise:
+
+```bash
+training-sync weightxreps exercises map \
+  --incoming "Barbell Hip Thrust with Bench" \
+  --existing-name "Barbell Hip Thrust" \
+  --existing-id 157721
+```
+
+Allow creating a new exercise only when it is intentional:
+
+```bash
+training-sync weightxreps exercises create \
+  --incoming "New Exercise Name"
+```
+
 Tokens are stored outside the repo under `~/.config/training-sync/`.
 
 Exercise aliases are also stored outside the repo:
@@ -121,6 +143,16 @@ aliases = [
   "Hip Thrust",
   "Barbell Hip Thrust with Bench",
 ]
+```
+
+To intentionally allow a new Weight x Reps exercise to be created when no
+existing exercise matches, mark that mapping explicitly:
+
+```toml
+[[exercises]]
+weightxreps_name = "New Exercise Name"
+aliases = ["New Exercise Name"]
+create_if_missing = true
 ```
 
 Unknown exercises are not created automatically. If an exercise cannot be
