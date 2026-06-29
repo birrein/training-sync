@@ -15,6 +15,7 @@ class ExerciseMapping:
     weightxreps_name: str
     weightxreps_id: int | None
     aliases: list[str]
+    create_if_missing: bool = False
 
 
 class DuplicateExerciseAliasError(ValueError):
@@ -38,6 +39,7 @@ def load_exercise_mappings(path: Path) -> list[ExerciseMapping]:
             weightxreps_name=exercise["weightxreps_name"],
             weightxreps_id=exercise.get("weightxreps_id"),
             aliases=list(exercise.get("aliases") or []),
+            create_if_missing=bool(exercise.get("create_if_missing", False)),
         )
         for exercise in data.get("exercises", [])
     ]

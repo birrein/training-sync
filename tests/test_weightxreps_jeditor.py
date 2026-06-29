@@ -1,3 +1,5 @@
+import pytest
+
 from training_sync.renderers.weightxreps_text import (
     ParsedExercise,
     ParsedSetLine,
@@ -40,7 +42,7 @@ def test_build_jeditor_rows_uses_known_exercise_ids_and_bodyweight():
     ]
 
 
-def test_build_jeditor_rows_can_create_unknown_exercises():
+def test_build_jeditor_rows_can_create_explicit_new_exercises():
     day = ParsedTrainingDay(
         date="2026-06-19",
         body_weight_kg=None,
@@ -52,7 +54,7 @@ def test_build_jeditor_rows_can_create_unknown_exercises():
         ],
     )
 
-    rows = build_jeditor_rows(day, exercise_ids={})
+    rows = build_jeditor_rows(day, exercise_ids={"New Lift": None})
 
     assert rows == [
         {
@@ -64,3 +66,19 @@ def test_build_jeditor_rows_can_create_unknown_exercises():
             "erows": [{"w": {"v": 10.0, "lb": 0}, "r": 8, "s": 1, "type": 0}],
         },
     ]
+
+
+def test_build_jeditor_rows_rejects_missing_exercise_resolution():
+    day = ParsedTrainingDay(
+        date="2026-06-19",
+        body_weight_kg=None,
+        exercises=[
+            ParsedExercise(
+                name="New Lift",
+                sets=[ParsedSetLine(weight_kg=10.0, reps=[8])],
+            )
+        ],
+    )
+
+    with pytest.raises(ValueError, match="Exercise id resolution missing: New Lift"):
+        build_jeditor_rows(day, exercise_ids={})

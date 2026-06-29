@@ -10,7 +10,7 @@ WEIGHT_X_REPS_SET_TYPE = 0
 
 def build_jeditor_rows(
     day: ParsedTrainingDay,
-    exercise_ids: dict[str, int],
+    exercise_ids: dict[str, int | None],
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     if day.body_weight_kg is not None:
@@ -20,12 +20,16 @@ def build_jeditor_rows(
     rows.append({"on": day.date})
     for exercise in day.exercises:
         exercise_row: dict[str, Any]
-        if exercise.name in exercise_ids:
-            exercise_row = {"eid": exercise_ids[exercise.name]}
-        else:
+        if exercise.name not in exercise_ids:
+            raise ValueError(f"Exercise id resolution missing: {exercise.name}")
+
+        exercise_id = exercise_ids[exercise.name]
+        if exercise_id is None:
             rows.append({"newExercise": exercise.name})
             exercise_row = {"eid": -new_exercise_index}
             new_exercise_index += 1
+        else:
+            exercise_row = {"eid": exercise_id}
 
         exercise_row["erows"] = [
             _set_line_to_erow(set_line)

@@ -17,6 +17,7 @@ def test_load_exercise_mappings_reads_aliases_from_toml(tmp_path):
         """[[exercises]]
 weightxreps_name = "Barbell Hip Thrust"
 weightxreps_id = 157721
+create_if_missing = true
 aliases = [
   "Hip Thrust",
   "Barbell Hip Thrust with Bench",
@@ -29,6 +30,7 @@ aliases = [
 
     assert mappings[0].weightxreps_name == "Barbell Hip Thrust"
     assert mappings[0].weightxreps_id == 157721
+    assert mappings[0].create_if_missing is True
     assert mappings[0].aliases == [
         "Hip Thrust",
         "Barbell Hip Thrust with Bench",
@@ -191,3 +193,63 @@ def test_mapping_without_id_resolves_by_canonical_remote_name():
     )
 
     assert resolved == {"Hip Thrust": 157721}
+
+
+def test_create_if_missing_returns_new_exercise_marker():
+    mappings = [
+        ExerciseMapping(
+            weightxreps_name="New Exercise Name",
+            weightxreps_id=None,
+            aliases=["New Exercise Name"],
+            create_if_missing=True,
+        )
+    ]
+
+    resolved = resolve_exercise_ids(
+        date="2026-06-20",
+        exercise_names=["New Exercise Name"],
+        local_mappings=mappings,
+        remote_exercise_ids={},
+    )
+
+    assert resolved == {"New Exercise Name": None}
+
+
+def test_create_if_missing_with_existing_id_resolves_to_id():
+    mappings = [
+        ExerciseMapping(
+            weightxreps_name="New Exercise Name",
+            weightxreps_id=157721,
+            aliases=["New Exercise Name"],
+            create_if_missing=True,
+        )
+    ]
+
+    resolved = resolve_exercise_ids(
+        date="2026-06-20",
+        exercise_names=["New Exercise Name"],
+        local_mappings=mappings,
+        remote_exercise_ids={"New Exercise Name": 157721},
+    )
+
+    assert resolved == {"New Exercise Name": 157721}
+
+
+def test_create_if_missing_with_existing_canonical_name_resolves_to_remote_id():
+    mappings = [
+        ExerciseMapping(
+            weightxreps_name="New Exercise Name",
+            weightxreps_id=None,
+            aliases=["New Exercise Alias"],
+            create_if_missing=True,
+        )
+    ]
+
+    resolved = resolve_exercise_ids(
+        date="2026-06-20",
+        exercise_names=["New Exercise Alias"],
+        local_mappings=mappings,
+        remote_exercise_ids={"New Exercise Name": 157721},
+    )
+
+    assert resolved == {"New Exercise Alias": 157721}

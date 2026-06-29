@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from training_sync.use_cases.weightxreps_push import push_weightxreps_day
+from training_sync.weightxreps.exercise_mapping import ExerciseMapping
 from training_sync.weightxreps.exercise_resolution import ExerciseResolutionRequired
 
 
@@ -79,6 +80,36 @@ def test_push_weightxreps_day_uses_remote_exercise_ids_when_not_provided(tmp_pat
     )
 
     assert client.saved_rows[2]["eid"] == 10
+
+
+def test_push_weightxreps_day_creates_explicitly_mapped_new_exercise(tmp_path):
+    vault = tmp_path / "vault"
+    _write_daily(vault)
+    client = FakeWeightxRepsClient(existing=False)
+
+    result = push_weightxreps_day(
+        vault,
+        "2026-06-19",
+        client,
+        exercise_ids={},
+        yes=False,
+        exercise_mappings=[
+            ExerciseMapping(
+                weightxreps_name="Chin Up",
+                weightxreps_id=None,
+                aliases=["Chin Up"],
+                create_if_missing=True,
+            )
+        ],
+    )
+
+    assert result == "saved"
+    assert client.saved_rows[1:3] == [
+        {
+            "on": "2026-06-19"
+        },
+        {"newExercise": "Chin Up"},
+    ]
 
 
 def test_push_weightxreps_day_requires_yes_when_remote_day_exists(tmp_path):

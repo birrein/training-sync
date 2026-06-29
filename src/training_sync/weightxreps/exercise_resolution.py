@@ -78,7 +78,7 @@ def resolve_exercise_ids(
     exercise_names: list[str],
     local_mappings: list[ExerciseMapping],
     remote_exercise_ids: dict[str, int],
-) -> dict[str, int]:
+) -> dict[str, int | None]:
     local_index = _local_alias_index(local_mappings)
     remote_index = {
         normalize_exercise_name(name): (name, exercise_id)
@@ -86,7 +86,7 @@ def resolve_exercise_ids(
     }
     remote_ids = set(remote_exercise_ids.values())
 
-    resolved: dict[str, int] = {}
+    resolved: dict[str, int | None] = {}
     unresolved: list[UnresolvedExercise] = []
     for exercise_name in exercise_names:
         normalized_name = normalize_exercise_name(exercise_name)
@@ -118,6 +118,10 @@ def resolve_exercise_ids(
             remote_match = remote_index.get(normalize_exercise_name(mapping.weightxreps_name))
             if remote_match is not None:
                 resolved[exercise_name] = remote_match[1]
+                continue
+
+            if mapping.create_if_missing:
+                resolved[exercise_name] = None
                 continue
 
         remote_match = remote_index.get(normalized_name)
