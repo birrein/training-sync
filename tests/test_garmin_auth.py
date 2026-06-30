@@ -11,7 +11,7 @@ class FakeGarmin:
         self.password = password
 
     def login(self, tokenstore):
-        self.login_calls.append(Path(tokenstore))
+        self.login_calls.append(tokenstore)
 
 
 def test_get_client_uses_training_sync_config_token_path(monkeypatch, tmp_path):
@@ -25,4 +25,4 @@ def test_get_client_uses_training_sync_config_token_path(monkeypatch, tmp_path):
 
     auth.get_client()
 
-    assert FakeGarmin.login_calls == [token_path]
+    assert FakeGarmin.login_calls == [str(token_path)]

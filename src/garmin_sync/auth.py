@@ -21,7 +21,7 @@ def get_client() -> Garmin:
 
     if token_file.exists():
         try:
-            client.login(tokenstore=token_file)
+            client.login(tokenstore=str(token_file))
             needs_login = False
             logger.info("Logged in using stored token.")
         except Exception:
@@ -36,7 +36,7 @@ def get_client() -> Garmin:
         client = Garmin(email, password)
         try:
             token_file.parent.mkdir(parents=True, exist_ok=True)
-            client.login(tokenstore=token_file)
+            client.login(tokenstore=str(token_file))
             token_file.chmod(0o600)
             logger.info("Interactive login successful.")
         except Exception as e:
