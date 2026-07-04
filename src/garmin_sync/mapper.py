@@ -12,12 +12,29 @@ FITBOD_CUSTOM_MAP = {
     "BARBELL BENCH PRESS": {"category": "BENCH_PRESS", "name": "BARBELL_BENCH_PRESS"},
     "FACE PULL": {"category": "ROW", "name": "FACE_PULL"},
     "CABLE FACE PULL": {"category": "ROW", "name": "FACE_PULL"},
+    "DEADLIFT": {"category": "DEADLIFT", "name": "BARBELL_DEADLIFT"},
+    "BARBELL DEADLIFT": {"category": "DEADLIFT", "name": "BARBELL_DEADLIFT"},
+    "BARBELL HIP THRUST": {
+        "category": "HIP_RAISE",
+        "name": "BARBELL_HIP_THRUST_WITH_BENCH",
+    },
+    "CABLE CRUNCH": {"category": "CRUNCH", "name": "CABLE_CRUNCH"},
     "DIP": {"category": "TRICEPS_EXTENSION", "name": "BODY_WEIGHT_DIP"},
+    "BODY-WEIGHT DIP": {"category": "TRICEPS_EXTENSION", "name": "BODY_WEIGHT_DIP"},
     "INCLINE DUMBBELL CURL": {"category": "CURL", "name": "INCLINE_DUMBBELL_BICEPS_CURL"},
+    "SINGLE ARM PREACHER CURL": {"category": "CURL", "name": "ONE_ARM_PREACHER_CURL"},
+    "ONE-ARM PREACHER CURL": {"category": "CURL", "name": "ONE_ARM_PREACHER_CURL"},
     "DUMBBELL FLY": {"category": "FLYE", "name": "DUMBBELL_FLYE"},
     "DUMBBELL BICEP CURL": {"category": "CURL", "name": "DUMBBELL_BICEPS_CURL"},
+    "DUMBBELL HAMMER CURL": {"category": "CURL", "name": "DUMBBELL_HAMMER_CURL"},
+    "HAMMER CURLS": {"category": "CURL", "name": "DUMBBELL_HAMMER_CURL"},
     "BICEP CURL": {"category": "CURL", "name": "DUMBBELL_BICEPS_CURL"},
     "TRICEP EXTENSION": {"category": "TRICEPS_EXTENSION", "name": "TRICEPS_PRESSDOWN"},
+    "SKULLCRUSHER": {"category": "TRICEPS_EXTENSION", "name": "LYING_EZ_BAR_TRICEPS_EXTENSION"},
+    "LYING EZ-BAR TRICEPS EXTENSION": {
+        "category": "TRICEPS_EXTENSION",
+        "name": "LYING_EZ_BAR_TRICEPS_EXTENSION",
+    },
 }
 
 DEFAULT_PROBABILITY = 100.0
