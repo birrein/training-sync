@@ -78,7 +78,37 @@ def push_workout(client: Garmin, workout_data: dict):
     )
     try:
         client.set_activity_exercise_sets(activity_id, existing_sets)
+        saved_sets = client.get_activity_exercise_sets(activity_id).get("exerciseSets", [])
+        _ensure_exercise_sets_persisted(existing_sets["exerciseSets"], saved_sets)
         logger.info("Successfully updated exercises.")
     except Exception as e:
         logger.error(f"Failed to update exercises: {e}")
         raise
+
+
+def _ensure_exercise_sets_persisted(expected_sets: list[dict], saved_sets: list[dict]) -> None:
+    expected_active = _active_set_signature(expected_sets)
+    saved_active = _active_set_signature(saved_sets)
+    if expected_active != saved_active:
+        raise RuntimeError(
+            "Garmin did not persist the requested exercise sets "
+            f"(expected {len(expected_active)} active sets, saved {len(saved_active)})."
+        )
+
+
+def _active_set_signature(sets: list[dict]) -> list[tuple]:
+    signature = []
+    for row in sets:
+        if row.get("setType") != "ACTIVE":
+            continue
+        exercises = row.get("exercises") or []
+        exercise = exercises[0] if exercises else {}
+        signature.append(
+            (
+                exercise.get("category"),
+                exercise.get("name"),
+                row.get("repetitionCount"),
+                row.get("weight"),
+            )
+        )
+    return signature
