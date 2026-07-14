@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 import re
 
+from training_sync.domain.activity_classification import classify_activity_type
+
 
 DISTANCE_UNIT_KILOMETERS = "km"
 _DURATION_PREFIX = "@ Duration: "
@@ -55,6 +57,31 @@ def render_strength_text(day: ParsedTrainingDay) -> str | None:
     return "\n".join(lines)
 
 
+def validate_strength_round_trip(day: ParsedTrainingDay) -> None:
+    """Reject preserved state that the daily strength grammar would alter."""
+
+    expected = ParsedTrainingDay(
+        date=day.date,
+        body_weight_kg=day.body_weight_kg,
+        exercises=[
+            exercise
+            for exercise in day.exercises
+            if all(set_line.set_type == 0 for set_line in exercise.sets)
+        ],
+    )
+    rendered = render_strength_text(expected)
+    observed = (
+        parse_weightxreps_text(rendered)
+        if rendered is not None
+        else ParsedTrainingDay(date=day.date, body_weight_kg=None)
+    )
+    if observed != expected:
+        raise ValueError(
+            "Remote strength snapshot is unrepresentable by the daily grammar "
+            f"without round-trip loss: expected={expected!r}, observed={observed!r}"
+        )
+
+
 def _render_strength_set_line(set_line: ParsedSetLine) -> str:
     weight = "BW" if set_line.uses_bodyweight else f"{set_line.weight_kg:g}kg"
     reps = ", ".join(str(rep) for rep in set_line.reps)
@@ -73,7 +100,9 @@ def parse_weightxreps_text(text: str) -> ParsedTrainingDay:
         nonlocal current_name, current_lines
         if current_name is None:
             return
-        exercises.append(_parse_exercise_block(current_name, current_lines))
+        exercise = _parse_exercise_block(current_name, current_lines)
+        if exercise is not None:
+            exercises.append(exercise)
         current_name = None
         current_lines = []
 
@@ -97,7 +126,7 @@ def parse_weightxreps_text(text: str) -> ParsedTrainingDay:
     return ParsedTrainingDay(date=date, body_weight_kg=body_weight, exercises=exercises)
 
 
-def _parse_exercise_block(name: str, lines: list[str]) -> ParsedExercise:
+def _parse_exercise_block(name: str, lines: list[str]) -> ParsedExercise | None:
     duration_line = next((line for line in lines if line.startswith(_DURATION_PREFIX)), None)
     if duration_line is None:
         return ParsedExercise(
@@ -105,7 +134,12 @@ def _parse_exercise_block(name: str, lines: list[str]) -> ParsedExercise:
             sets=[_parse_set_line(line) for line in lines if not line.startswith("@ ")],
         )
 
-    name = _normalize_cardio_exercise_name(name)
+    classification = classify_activity_type(name)
+    if classification.local_only:
+        return None
+    name = classification.weightxreps_name
+    if name is None:
+        return None
 
     distance = None
     distance_unit = None
@@ -130,13 +164,6 @@ def _parse_exercise_block(name: str, lines: list[str]) -> ParsedExercise:
             )
         ],
     )
-
-
-def _normalize_cardio_exercise_name(name: str) -> str:
-    normalized = name.casefold().replace("-", "_").replace(" ", "_")
-    if "cycl" in normalized or "ride" in normalized:
-        return "Cycling"
-    return name
 
 
 def _parse_duration_ms(value: str) -> int:

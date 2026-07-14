@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from training_sync.domain.activity_classification import classify_activity_type
 from training_sync.domain.garmin_activity import GarminActivity
 from training_sync.renderers.garmin_daily import render_training_activities
 from training_sync.renderers.weightxreps_text import (
@@ -13,6 +14,7 @@ from training_sync.renderers.weightxreps_text import (
     ParsedSetLine,
     ParsedTrainingDay,
     render_strength_text,
+    validate_strength_round_trip,
 )
 from training_sync.use_cases.weightxreps_preview import load_weightxreps_day_from_vault
 from training_sync.vault.daily import daily_note_path
@@ -101,22 +103,7 @@ def build_complete_training_day(
 
 
 def _activity_exercise_name(type_key: str) -> str | None:
-    normalized = type_key.casefold().replace("-", "_").replace(" ", "_")
-    if "strength" in normalized:
-        return None
-    if "run" in normalized:
-        return "Running"
-    if "cycl" in normalized or "ride" in normalized:
-        return "Cycling"
-    if "walk" in normalized:
-        return "Walking"
-    if "swim" in normalized:
-        return "Swimming"
-    if "row" in normalized:
-        return "Rowing"
-    if normalized in {"cardio", "generic_cardio"}:
-        return "Cardio"
-    raise RuntimeError(f"Unsupported Garmin activity type: {type_key}")
+    return classify_activity_type(type_key).weightxreps_name
 
 
 def _activity_comment(activity: GarminActivity) -> str:
@@ -168,6 +155,7 @@ def preflight_sync_day(date: str, *, yes: bool, deps: SyncDependencies) -> SyncP
         if (exercise_name := _activity_exercise_name(activity.type_key)) is not None
     ]
     remote_snapshot = deps.weightxreps.remote_day_snapshot(date)
+    validate_strength_round_trip(remote_snapshot.preserved)
     if remote_snapshot.has_content and not yes:
         raise RuntimeError(f"Weight x Reps day {date} has content; rerun with --yes to replace it")
 

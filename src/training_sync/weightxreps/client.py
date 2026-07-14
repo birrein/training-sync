@@ -10,6 +10,7 @@ from training_sync.renderers.weightxreps_text import (
     ParsedExercise,
     ParsedSetLine,
     ParsedTrainingDay,
+    validate_strength_round_trip,
 )
 
 GRAPHQL_ENDPOINT = "https://weightxreps.net/api/graphql"
@@ -323,14 +324,16 @@ def _remote_day_snapshot(
             )
         )
 
-    return RemoteDaySnapshot(
-        preserved=ParsedTrainingDay(
-            date=date,
-            body_weight_kg=body_weight,
-            exercises=exercises,
-        ),
-        has_content=has_content,
+    preserved = ParsedTrainingDay(
+        date=date,
+        body_weight_kg=body_weight,
+        exercises=exercises,
     )
+    try:
+        validate_strength_round_trip(preserved)
+    except ValueError as exc:
+        _unrepresentable(date, str(exc))
+    return RemoteDaySnapshot(preserved=preserved, has_content=has_content)
 
 
 def _remote_strength_set(

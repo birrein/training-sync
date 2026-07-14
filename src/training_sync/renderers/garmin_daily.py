@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 
+from training_sync.domain.activity_classification import classify_activity_type
 from training_sync.domain.garmin_activity import GarminActivity
 
 
@@ -21,11 +22,7 @@ def _pace_text(duration_ms: int, distance_m: float) -> str:
 
 
 def _activity_tag(type_key: str) -> str:
-    if "run" in type_key:
-        return "Running"
-    if "cycl" in type_key:
-        return "Cycling"
-    return type_key.capitalize()
+    return classify_activity_type(type_key).daily_tag
 
 
 def _metric_text(value: int | float) -> str:
@@ -45,7 +42,10 @@ def _render_activity(date: str, activity: GarminActivity) -> str:
         lines.append(f"{distance_km:.2f}km")
     lines.append(f"@ Duration: {_duration_text(activity.duration_ms)}")
 
-    if "run" in activity.type_key and activity.distance_m:
+    if (
+        classify_activity_type(activity.type_key).weightxreps_name == "Running"
+        and activity.distance_m
+    ):
         lines.append(f"@ Avg Pace: {_pace_text(activity.duration_ms, activity.distance_m)}")
 
     metadata = (

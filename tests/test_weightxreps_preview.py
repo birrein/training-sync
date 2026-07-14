@@ -1,6 +1,11 @@
 import pytest
 
-from training_sync.use_cases.weightxreps_preview import preview_weightxreps_day_from_vault
+from training_sync.domain.garmin_activity import GarminActivity
+from training_sync.renderers.garmin_daily import render_training_activities
+from training_sync.use_cases.weightxreps_preview import (
+    load_weightxreps_day_from_vault,
+    preview_weightxreps_day_from_vault,
+)
 from training_sync.weightxreps.exercise_resolution import ExerciseResolutionRequired
 
 
@@ -150,6 +155,58 @@ def test_preview_weightxreps_day_normalizes_virtual_ride_to_cycling(tmp_path):
             ],
         },
     ]
+
+
+def test_rendered_supported_aliases_round_trip_to_canonical_preview_rows_and_skip_strength(tmp_path):
+    vault = tmp_path / "vault"
+    daily = vault / "daily/2026/07-July/2026-07-03-Friday.md"
+    daily.parent.mkdir(parents=True)
+    aliases = [
+        ("running", "Running", 30),
+        ("virtual_ride", "Cycling", 40),
+        ("walking", "Walking", 50),
+        ("lap_swimming", "Swimming", 60),
+        ("indoor_rowing", "Rowing", 70),
+        ("generic_cardio", "Cardio", 80),
+        ("strength_training", None, None),
+    ]
+    activities = [
+        GarminActivity(
+            activity_id=index,
+            name=f"Activity {index}",
+            start_time=f"2026-07-03 {index:02d}:00:00",
+            type_key=type_key,
+            duration_ms=1_800_000,
+            distance_m=None if type_key == "strength_training" else 5_000,
+        )
+        for index, (type_key, _, _) in enumerate(aliases, start=1)
+    ]
+    rendered = render_training_activities("2026-07-03", activities)
+    daily.write_text(
+        f"# Friday\n\n## 🏃 Training\n{rendered}\n\n## 📚 Reading & Study\n",
+        encoding="utf-8",
+    )
+    exercise_ids = {
+        canonical_name: exercise_id
+        for _, canonical_name, exercise_id in aliases
+        if canonical_name is not None
+    }
+
+    loaded = load_weightxreps_day_from_vault(vault, "2026-07-03")
+    rows = preview_weightxreps_day_from_vault(
+        vault,
+        "2026-07-03",
+        exercise_ids=exercise_ids,
+    )
+
+    assert [exercise.name for exercise in loaded.exercises] == list(exercise_ids)
+    assert [row.get("eid") for row in rows if "eid" in row] == list(exercise_ids.values())
+    for row in rows[1:]:
+        assert row["erows"][0]["type"] == 2
+        assert row["erows"][0]["t"] == 1_800_000
+        assert row["erows"][0]["d"] == {"val": 50_000_000, "unit": "km"}
+    assert "#Strength_training" in rendered
+    assert "@ Duration: 00:30:00.0" in rendered
 
 
 def test_preview_weightxreps_day_requires_exercise_resolution_before_new_exercise(tmp_path):

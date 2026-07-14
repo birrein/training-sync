@@ -426,8 +426,17 @@ def test_remote_day_snapshot_preserves_representable_bodyweight_and_type_zero_st
         {"v": 47, "r": 8, "s": 3, "lb": 0, "usebw": 0, "type": 0, "c": "note"},
         {"v": 47, "r": 8, "s": 0, "lb": 0, "usebw": 0, "type": 0},
         {"v": 47, "r": 8, "s": 3, "lb": 0, "usebw": 0, "type": 9},
+        {"v": 12.5, "r": 8, "s": 3, "lb": 0, "usebw": 1, "type": 0},
+        {"v": 47.1234567, "r": 8, "s": 3, "lb": 0, "usebw": 0, "type": 0},
     ],
-    ids=["pounds", "strength-comment", "invalid-set-count", "unknown-type"],
+    ids=[
+        "pounds",
+        "strength-comment",
+        "invalid-set-count",
+        "unknown-type",
+        "weighted-bodyweight",
+        "high-precision-weight",
+    ],
 )
 def test_remote_day_snapshot_rejects_unrepresentable_strength_before_replacement(set_row):
     day = {

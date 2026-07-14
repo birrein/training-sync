@@ -696,6 +696,84 @@ def test_preflight_aborts_before_writes_for_unrepresentable_remote_strength_with
 
 
 @pytest.mark.parametrize(
+    "remote",
+    [
+        ParsedTrainingDay(
+            date=DATE,
+            body_weight_kg=None,
+            exercises=[
+                ParsedExercise(
+                    name="Chin Up",
+                    sets=[
+                        ParsedSetLine(
+                            weight_kg=12.5,
+                            reps=(5, 5, 5),
+                            uses_bodyweight=True,
+                        )
+                    ],
+                )
+            ],
+        ),
+        ParsedTrainingDay(
+            date=DATE,
+            body_weight_kg=71.1234567,
+            exercises=[],
+        ),
+    ],
+    ids=["weighted-bodyweight", "high-precision-bodyweight"],
+)
+def test_preflight_rejects_remote_snapshot_that_cannot_round_trip_without_writes(tmp_path, remote):
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[activity(1, "2026-07-03 07:00:00")],
+        existing_remote=True,
+        remote_preserved=remote,
+        exercise_ids={"Chin Up": 10},
+    )
+    original = daily.read_text(encoding="utf-8")
+
+    with pytest.raises(ValueError, match="round-trip|unrepresentable"):
+        preflight_sync_day(DATE, yes=True, deps=deps)
+
+    assert_no_writes(deps, daily, original)
+
+
+def test_fresh_retry_preserves_representable_remote_strength_after_partial_failure(tmp_path):
+    remote = ParsedTrainingDay(
+        date=DATE,
+        body_weight_kg=72.3,
+        exercises=[
+            ParsedExercise(
+                name="Barbell Row",
+                sets=[ParsedSetLine(weight_kg=51.0, reps=(12, 12, 12))],
+            )
+        ],
+    )
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[activity(1, "2026-07-03 07:00:00")],
+        existing_remote=True,
+        remote_preserved=remote,
+        exercise_ids={"Barbell Row": 20},
+        save_error=RuntimeError("first save failed"),
+    )
+
+    with pytest.raises(PartialSyncFailure):
+        sync_day(DATE, yes=True, deps=deps)
+    first_rows = deps.weightxreps.writes[0][1]
+    deps.weightxreps.save_error = None
+
+    result = sync_day(DATE, yes=True, deps=deps)
+    second_rows = deps.weightxreps.writes[1][1]
+
+    assert second_rows == first_rows
+    assert result.weightxreps_verified is True
+    retained = daily.read_text(encoding="utf-8")
+    assert "@ 72.3 bw" in retained
+    assert "#Barbell Row" in retained
+
+
+@pytest.mark.parametrize(
     ("local_content", "remote"),
     [
         (
