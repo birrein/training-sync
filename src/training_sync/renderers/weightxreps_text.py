@@ -35,6 +35,32 @@ class ParsedTrainingDay:
     exercises: list[ParsedExercise] = field(default_factory=list)
 
 
+def render_strength_text(day: ParsedTrainingDay) -> str | None:
+    """Render the parseable strength/body-weight subset of a training day."""
+
+    strength_exercises = [
+        exercise
+        for exercise in day.exercises
+        if all(set_line.set_type == 0 for set_line in exercise.sets)
+    ]
+    if day.body_weight_kg is None and not strength_exercises:
+        return None
+
+    lines = [day.date]
+    if day.body_weight_kg is not None:
+        lines.append(f"@ {day.body_weight_kg:g} bw")
+    for exercise in strength_exercises:
+        lines.extend(("", f"#{exercise.name}"))
+        lines.extend(_render_strength_set_line(set_line) for set_line in exercise.sets)
+    return "\n".join(lines)
+
+
+def _render_strength_set_line(set_line: ParsedSetLine) -> str:
+    weight = "BW" if set_line.uses_bodyweight else f"{set_line.weight_kg:g}kg"
+    reps = ", ".join(str(rep) for rep in set_line.reps)
+    return f"{weight} x {reps}"
+
+
 def parse_weightxreps_text(text: str) -> ParsedTrainingDay:
     lines = [line.strip() for line in text.strip().splitlines()]
     date = lines[0]

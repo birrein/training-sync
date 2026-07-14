@@ -6,6 +6,7 @@ from training_sync.renderers.weightxreps_text import (
     ParsedSetLine,
     ParsedTrainingDay,
     parse_weightxreps_text,
+    render_strength_text,
 )
 
 
@@ -41,6 +42,47 @@ BW x 5, 5, 5
             ),
         ],
     )
+
+
+def test_render_strength_text_round_trips_strength_and_bodyweight_without_prior_cardio():
+    prior = ParsedTrainingDay(
+        date="2026-07-03",
+        body_weight_kg=71.4,
+        exercises=[
+            ParsedExercise(
+                name="Chin Up",
+                sets=[ParsedSetLine(reps=(5, 5, 5), uses_bodyweight=True)],
+            ),
+            ParsedExercise(
+                name="Barbell Row",
+                sets=[
+                    ParsedSetLine(weight_kg=31.0, reps=(8,)),
+                    ParsedSetLine(weight_kg=51.0, reps=(12, 12, 12)),
+                ],
+            ),
+            ParsedExercise(
+                name="Running",
+                sets=[
+                    ParsedSetLine(
+                        set_type=2,
+                        duration_ms=900_000,
+                        distance=2.5,
+                        distance_unit="km",
+                    )
+                ],
+            ),
+        ],
+    )
+
+    rendered = render_strength_text(prior)
+
+    assert rendered is not None
+    assert parse_weightxreps_text(rendered) == ParsedTrainingDay(
+        date="2026-07-03",
+        body_weight_kg=71.4,
+        exercises=prior.exercises[:2],
+    )
+    assert "#Running" not in rendered
 
 
 @pytest.mark.parametrize("exercise_name", ["Running", "Cycling", "Virtual_ride"])

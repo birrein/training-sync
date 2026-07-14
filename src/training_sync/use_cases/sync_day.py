@@ -12,6 +12,7 @@ from training_sync.renderers.weightxreps_text import (
     ParsedExercise,
     ParsedSetLine,
     ParsedTrainingDay,
+    render_strength_text,
 )
 from training_sync.use_cases.weightxreps_preview import load_weightxreps_day_from_vault
 from training_sync.vault.daily import daily_note_path
@@ -145,9 +146,6 @@ def preflight_sync_day(date: str, *, yes: bool, deps: SyncDependencies) -> SyncP
     if training_section_has_content(original_daily) and not yes:
         raise RuntimeError(f"Daily training section for {date} has content; rerun with --yes to replace it")
 
-    rendered_activities = render_training_activities(date, activities)
-    updated_daily = replace_training_section(original_daily, rendered_activities)
-
     if deps.user_id is not None:
         exercise_ids = deps.weightxreps.exercise_catalog(deps.user_id)
         catalog_source = "full_catalog"
@@ -161,6 +159,12 @@ def preflight_sync_day(date: str, *, yes: bool, deps: SyncDependencies) -> SyncP
         else ParsedTrainingDay(date=date, body_weight_kg=None)
     )
     complete_day = build_complete_training_day(date, preserved, activities)
+    rendered_parts = []
+    rendered_strength = render_strength_text(complete_day)
+    if rendered_strength is not None:
+        rendered_parts.append(f"```text\n{rendered_strength}\n```")
+    rendered_parts.append(render_training_activities(date, activities))
+    updated_daily = replace_training_section(original_daily, "\n\n".join(rendered_parts))
     resolved_exercise_ids = resolve_exercise_ids(
         date=date,
         exercise_names=[exercise.name for exercise in complete_day.exercises],

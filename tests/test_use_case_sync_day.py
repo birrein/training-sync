@@ -250,7 +250,7 @@ def test_preflight_rejects_existing_daily_content_without_yes_and_does_not_write
     assert_no_writes(deps, daily, original)
 
 
-def test_preflight_replaces_existing_daily_content_in_memory_with_yes(tmp_path):
+def test_preflight_preserves_strength_while_replacing_daily_cardio_in_memory_with_yes(tmp_path):
     deps, daily = fake_dependencies(
         tmp_path,
         activities=[activity(1, "2026-07-03 07:00:00")],
@@ -267,7 +267,8 @@ def test_preflight_replaces_existing_daily_content_in_memory_with_yes(tmp_path):
     plan = preflight_sync_day(DATE, yes=True, deps=deps)
 
     assert plan.original_daily == original
-    assert "#Known Exercise" not in plan.updated_daily
+    assert plan.updated_daily != original
+    assert plan.updated_daily.count("#Known Exercise") == 1
     assert "- Activity 1" in plan.updated_daily
     assert plan.updated_daily.count("## 🏃 Training") == 1
     assert_no_writes(deps, daily, original)
@@ -386,6 +387,11 @@ def test_apply_retry_saves_identical_rows_after_partial_failure(tmp_path):
 
 #Barbell Row
 51kg x 12, 12, 12
+
+#Running
+2.50km
+@ Duration: 00:15:00.0
+@ Avg HR: 120
 ```""",
         exercise_ids={"Barbell Row": 20, "Running": 30, "Cycling": 40},
         save_error=RuntimeError("first save failed"),
@@ -404,6 +410,51 @@ def test_apply_retry_saves_identical_rows_after_partial_failure(tmp_path):
     assert first_rows == second_rows
     assert result.weightxreps_verified is True
     assert daily.read_text(encoding="utf-8").count("## 🏃 Training") == 1
+
+
+def test_sync_day_retry_rebuilds_identical_full_day_from_retained_daily(tmp_path):
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[
+            activity(20, "2026-07-03 18:00:00", "cycling"),
+            activity(10, "2026-07-03 07:00:00", "running"),
+        ],
+        daily_content="""```text
+2026-07-03
+@ 71.4 bw
+
+#Barbell Row
+51kg x 12, 12, 12
+
+#Running
+2.50km
+@ Duration: 00:15:00.0
+@ Avg HR: 120
+```""",
+        exercise_ids={"Barbell Row": 20, "Running": 30, "Cycling": 40},
+        save_error=RuntimeError("first save failed"),
+    )
+
+    with pytest.raises(PartialSyncFailure):
+        sync_day(DATE, yes=True, deps=deps)
+    first_rows = deps.weightxreps.writes[0][1]
+    retained_daily = daily.read_text(encoding="utf-8")
+    deps.weightxreps.save_error = None
+
+    result = sync_day(DATE, yes=True, deps=deps)
+    second_rows = deps.weightxreps.writes[1][1]
+
+    assert first_rows[0] == {"bw": 71.4, "lb": 0}
+    assert [row.get("eid") for row in first_rows if "eid" in row] == [20, 30, 40]
+    assert second_rows == first_rows
+    assert result.weightxreps_verified is True
+    assert "@ 71.4 bw" in retained_daily
+    assert "#Barbell Row" in retained_daily
+    assert "2.50km" not in retained_daily
+    assert "@ Avg HR: 120" not in retained_daily
+    assert retained_daily.count("- Activity 10") == 1
+    assert retained_daily.count("- Activity 20") == 1
+    assert daily.read_text(encoding="utf-8") == retained_daily
 
 
 def test_sync_day_directly_runs_preflight_apply_and_verification(tmp_path):
