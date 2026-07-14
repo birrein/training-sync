@@ -4,8 +4,8 @@
 - [x] 1.3 Implement the minimal CLI and orchestration contract.
 
 ## 2. Daily multi-activity rendering
-- [ ] 2.1 Add failing renderer and vault tests for stable multi-activity replacement and confirmation.
-- [ ] 2.2 Implement combined rendering and existing-daily replacement.
+- [x] 2.1 Add failing renderer and vault tests for stable multi-activity replacement and confirmation.
+- [x] 2.2 Implement combined rendering and existing-daily replacement.
 
 ## 3. Structured Weight x Reps cardio rows
 - [ ] 3.1 Add failing parser/domain tests for duration, distance, unit, set type, and comments.
