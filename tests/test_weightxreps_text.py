@@ -94,3 +94,14 @@ def test_parse_weightxreps_text_builds_duration_only_cardio_without_invented_met
             ],
         )
     ]
+
+
+def test_parse_weightxreps_text_rejects_malformed_strength_set_lines():
+    with pytest.raises(ValueError, match="Unsupported set line: not a valid set"):
+        parse_weightxreps_text(
+            """2026-07-03
+
+#Barbell Row
+not a valid set
+"""
+        )

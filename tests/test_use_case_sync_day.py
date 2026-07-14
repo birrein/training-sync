@@ -320,6 +320,29 @@ def test_preflight_rejects_unresolved_exercises_without_writing(tmp_path):
     assert_no_writes(deps, daily, original)
 
 
+def test_preflight_rejects_exercises_that_would_be_created_without_writing(tmp_path):
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[activity(1, "2026-07-03 07:00:00")],
+        mappings=[
+            ExerciseMapping(
+                weightxreps_name="Running",
+                weightxreps_id=None,
+                aliases=["Running"],
+                create_if_missing=True,
+            )
+        ],
+        user_id=123,
+    )
+    deps.weightxreps.exercise_ids_map = {}
+    original = daily.read_text(encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="cannot create Weight x Reps exercises: Running"):
+        preflight_sync_day(DATE, yes=True, deps=deps)
+
+    assert_no_writes(deps, daily, original)
+
+
 def test_preflight_preserves_strength_and_builds_one_structured_block_per_cardio_activity(tmp_path):
     running = activity(10, "2026-07-03 07:00:00", "running")
     running.update({"activityName": "Morning Run", "averageHR": 148})
@@ -437,3 +460,46 @@ def test_build_complete_training_day_maps_virtual_ride_to_cycling():
     complete = build_complete_training_day(DATE, preserved, [virtual_ride])
 
     assert complete.exercises[0].name == "Cycling"
+
+
+def test_build_complete_training_day_ignores_non_cardio_activities_and_preserves_strength():
+    strength = ParsedExercise(
+        name="Barbell Row",
+        sets=[ParsedSetLine(weight_kg=51.0, reps=(12, 12, 12))],
+    )
+    preserved = ParsedTrainingDay(
+        date=DATE,
+        body_weight_kg=71.4,
+        exercises=[strength],
+    )
+    strength_activity = GarminActivity.from_garmin(
+        activity(10, "2026-07-03 07:00:00", "strength_training")
+    )
+    running_activity = GarminActivity.from_garmin(
+        activity(20, "2026-07-03 18:00:00", "running")
+    )
+
+    complete = build_complete_training_day(
+        DATE,
+        preserved,
+        [strength_activity, running_activity],
+    )
+
+    assert complete.exercises[0] == strength
+    assert [exercise.name for exercise in complete.exercises] == ["Barbell Row", "Running"]
+
+
+def test_preflight_renders_non_cardio_activity_without_planning_weightxreps_cardio(tmp_path):
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[activity(10, "2026-07-03 07:00:00", "strength_training")],
+        user_id=123,
+    )
+    deps.weightxreps.exercise_ids_map = {}
+    original = daily.read_text(encoding="utf-8")
+
+    plan = preflight_sync_day(DATE, yes=True, deps=deps)
+
+    assert "#Strength_training" in plan.updated_daily
+    assert plan.weightxreps_rows == ({"on": DATE},)
+    assert_no_writes(deps, daily, original)

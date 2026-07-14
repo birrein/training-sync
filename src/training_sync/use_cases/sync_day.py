@@ -63,10 +63,13 @@ def build_complete_training_day(
         if all(set_line.set_type == 0 for set_line in exercise.sets)
     ]
     for activity in activities:
+        exercise_name = _activity_exercise_name(activity.type_key)
+        if exercise_name is None:
+            continue
         has_distance = activity.distance_m is not None
         exercises.append(
             ParsedExercise(
-                name=_activity_exercise_name(activity.type_key),
+                name=exercise_name,
                 sets=[
                     ParsedSetLine(
                         set_type=2 if has_distance else 1,
@@ -85,12 +88,12 @@ def build_complete_training_day(
     )
 
 
-def _activity_exercise_name(type_key: str) -> str:
+def _activity_exercise_name(type_key: str) -> str | None:
     if "run" in type_key:
         return "Running"
     if "cycl" in type_key or "ride" in type_key:
         return "Cycling"
-    return type_key.capitalize()
+    return None
 
 
 def _activity_comment(activity: GarminActivity) -> str:
@@ -154,6 +157,15 @@ def preflight_sync_day(date: str, *, yes: bool, deps: SyncDependencies) -> SyncP
         remote_exercise_ids=exercise_ids,
         catalog_source=catalog_source,
     )
+    exercises_to_create = [
+        name for name, exercise_id in resolved_exercise_ids.items()
+        if exercise_id is None
+    ]
+    if exercises_to_create:
+        raise RuntimeError(
+            "Integrated sync cannot create Weight x Reps exercises: "
+            + ", ".join(exercises_to_create)
+        )
     rows = tuple(build_jeditor_rows(complete_day, resolved_exercise_ids))
 
     if deps.weightxreps.day_has_content(date) and not yes:

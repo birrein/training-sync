@@ -76,7 +76,7 @@ def _parse_exercise_block(name: str, lines: list[str]) -> ParsedExercise:
     if duration_line is None:
         return ParsedExercise(
             name=name,
-            sets=[_parse_set_line(line) for line in lines if " x " in line],
+            sets=[_parse_set_line(line) for line in lines if not line.startswith("@ ")],
         )
 
     distance = None
@@ -115,7 +115,10 @@ def _parse_duration_ms(value: str) -> int:
 
 
 def _parse_set_line(line: str) -> ParsedSetLine:
-    weight_part, reps_part = [part.strip() for part in line.split(" x ", 1)]
+    parts = [part.strip() for part in line.split(" x ", 1)]
+    if len(parts) != 2:
+        raise ValueError(f"Unsupported set line: {line}")
+    weight_part, reps_part = parts
     reps = tuple(int(rep.strip()) for rep in reps_part.split(","))
     if weight_part.upper() == "BW":
         return ParsedSetLine(weight_kg=0.0, reps=reps, uses_bodyweight=True)
