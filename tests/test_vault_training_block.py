@@ -79,3 +79,11 @@ def test_replace_training_section_preserves_exact_surrounding_sections():
 def test_replace_training_section_requires_existing_heading():
     with pytest.raises(ValueError, match="Training section not found"):
         replace_training_section("# Friday\n", "- Activity")
+
+
+@pytest.mark.parametrize("near_miss", ["## 🏃 Training Plan", "## 🏃 Training extra", "### 🏃 Training"])
+def test_training_section_requires_exact_heading_line(near_miss):
+    note = f"# Friday\n\n{near_miss}\nOld\n\n## 📚 Reading & Study\n"
+
+    with pytest.raises(ValueError, match="Training section not found"):
+        extract_training_section(note)

@@ -96,16 +96,24 @@ shared confirmation to replace the daily training section and the complete
 remote day.
 
 All Garmin activities are written to the daily in chronological order. For
-Weight x Reps, the reconciled full day preserves the existing body weight and
-strength exercises, removes previously generated cardio rows, and creates one
-new structured row for each supported Garmin running or cycling activity:
+Weight x Reps, the reconciled full day preserves body weight and strength from
+both the daily and the remote day, removes previously generated cardio rows,
+and creates one new structured row for each supported Garmin cardio activity.
+Matching local and remote strength is kept once; missing remote strength is
+added to the daily so a fresh-process retry converges. Divergent or remotely
+unrepresentable strength stops preflight before either destination is written.
 
 - `type: 1` stores duration-only cardio.
 - `type: 2` stores duration plus distance, including the distance value and
-  unit. Running maps to `Running`; cycling and virtual rides map to `Cycling`.
+  unit. Running maps to `Running`; cycling and virtual rides map to `Cycling`;
+  walking, swimming, rowing, and generic cardio map to their corresponding
+  existing exercises. Garmin strength activities remain locally rendered and
+  use the preserved strength source instead of creating duplicate cardio rows.
+  Unsupported or unresolved activity types stop preflight before writes.
 
 After updating the daily, the command saves the complete Weight x Reps day and
-verifies it with a read-back. If the remote save or read-back fails, the updated
+verifies body weight, strength weight/reps/set metadata, cardio duration and
+distance fields, and submitted comments with a read-back. If the remote save or read-back fails, the updated
 daily is intentionally retained so a retry can rebuild the same full-day
 payload; the command reports the daily path and the Weight x Reps failure as a
 partial sync. Review that error before retrying. The integrated sync does not

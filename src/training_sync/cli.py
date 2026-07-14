@@ -309,7 +309,10 @@ def sync_day_cli(date: str, yes: bool) -> None:
         mappings=load_exercise_mappings(weightxreps_exercise_mapping_path()),
         user_id=user_id,
     )
-    result = sync_day(date, yes=yes, deps=deps)
+    try:
+        result = sync_day(date, yes=yes, deps=deps)
+    except ExerciseResolutionRequired as exc:
+        _exit_with_resolution_payload(exc)
     print(json.dumps(asdict(result), default=str))
 
 

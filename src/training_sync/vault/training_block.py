@@ -1,5 +1,7 @@
 """Read and update the ## 🏃 Training section in daily notes."""
 
+import re
+
 TRAINING_HEADING = "## 🏃 Training"
 
 
@@ -21,11 +23,14 @@ def replace_training_section(note_text: str, new_content: str) -> str:
 
 
 def _section_bounds(note_text: str) -> tuple[int, int]:
-    heading_index = note_text.find(TRAINING_HEADING)
-    if heading_index == -1:
+    heading_match = re.search(
+        rf"(?m)^{re.escape(TRAINING_HEADING)}$",
+        note_text,
+    )
+    if heading_match is None:
         raise ValueError("Training section not found")
 
-    content_start = heading_index + len(TRAINING_HEADING)
+    content_start = heading_match.end()
     if note_text[content_start:content_start + 1] == "\n":
         content_start += 1
 

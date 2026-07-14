@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -49,14 +50,37 @@ class FakeWeightxReps:
         exercise_ids=None,
         save_error=None,
         verification_error=None,
+        remote_preserved=None,
+        remote_snapshot_error=None,
     ):
         self.existing = existing
-        self.exercise_ids_map = {"Running": 30, "Cycling": 40}
+        self.exercise_ids_map = {
+            "Running": 30,
+            "Cycling": 40,
+            "Walking": 50,
+            "Swimming": 60,
+            "Rowing": 70,
+            "Cardio": 80,
+        }
         self.exercise_ids_map.update(exercise_ids or {})
         self.calls = []
         self.writes = []
         self.save_error = save_error
         self.verification_error = verification_error
+        self.remote_preserved = remote_preserved or ParsedTrainingDay(
+            date=DATE,
+            body_weight_kg=None,
+        )
+        self.remote_snapshot_error = remote_snapshot_error
+
+    def remote_day_snapshot(self, date):
+        self.calls.append(("remote_day_snapshot", date))
+        if self.remote_snapshot_error is not None:
+            raise self.remote_snapshot_error
+        return SimpleNamespace(
+            preserved=self.remote_preserved,
+            has_content=self.existing,
+        )
 
     def day_has_content(self, date):
         self.calls.append(("day_has_content", date))
@@ -93,6 +117,8 @@ def fake_dependencies(
     user_id=None,
     save_error=None,
     verification_error=None,
+    remote_preserved=None,
+    remote_snapshot_error=None,
 ):
     vault = tmp_path / "vault"
     daily = vault / "daily/2026/07-July/2026-07-03-Friday.md"
@@ -108,6 +134,8 @@ def fake_dependencies(
         exercise_ids=exercise_ids,
         save_error=save_error,
         verification_error=verification_error,
+        remote_preserved=remote_preserved,
+        remote_snapshot_error=remote_snapshot_error,
     )
     deps = SyncDependencies(
         garmin=garmin,
@@ -169,6 +197,15 @@ def test_garmin_activity_accepts_missing_optional_values():
     assert normalized.training_load is None
 
 
+@pytest.mark.parametrize("start_time", [None, "", "2026-07-03", "03-07-2026 07:00:00", "not-a-time"])
+def test_garmin_activity_rejects_missing_or_malformed_local_start_time(start_time):
+    raw = activity(10, "2026-07-03 07:00:00")
+    raw["startTimeLocal"] = start_time
+
+    with pytest.raises(ValueError, match="startTimeLocal"):
+        GarminActivity.from_garmin(raw)
+
+
 def test_preflight_orders_every_activity_and_does_not_write(tmp_path):
     deps, daily = fake_dependencies(
         tmp_path,
@@ -228,6 +265,18 @@ def test_preflight_rejects_missing_daily_without_writing(tmp_path):
 def test_preflight_rejects_missing_training_heading_without_writing(tmp_path):
     deps, daily = fake_dependencies(tmp_path, activities=[activity(1, "2026-07-03 07:00:00")])
     daily.write_text("# Friday\n\n## 📚 Reading & Study\n", encoding="utf-8")
+    original = daily.read_text(encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Training section not found"):
+        preflight_sync_day(DATE, yes=True, deps=deps)
+
+    assert_no_writes(deps, daily, original)
+
+
+@pytest.mark.parametrize("near_miss", ["## 🏃 Training Plan", "## 🏃 Training extra", "### 🏃 Training"])
+def test_preflight_rejects_near_miss_training_heading_without_writing(tmp_path, near_miss):
+    deps, daily = fake_dependencies(tmp_path, activities=[activity(1, "2026-07-03 07:00:00")])
+    daily.write_text(f"# Friday\n\n{near_miss}\n\n## 📚 Reading & Study\n", encoding="utf-8")
     original = daily.read_text(encoding="utf-8")
 
     with pytest.raises(ValueError, match="Training section not found"):
@@ -596,6 +645,108 @@ BW x 5, 5, 5
     assert daily.read_text(encoding="utf-8") == original
 
 
+def test_preflight_preserves_representable_remote_bodyweight_and_strength_missing_locally(tmp_path):
+    remote = ParsedTrainingDay(
+        date=DATE,
+        body_weight_kg=72.3,
+        exercises=[
+            ParsedExercise(
+                name="Barbell Row",
+                sets=[ParsedSetLine(weight_kg=51.0, reps=(12, 12, 12))],
+            )
+        ],
+    )
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[activity(1, "2026-07-03 07:00:00")],
+        existing_remote=True,
+        remote_preserved=remote,
+        exercise_ids={"Barbell Row": 20},
+    )
+    original = daily.read_text(encoding="utf-8")
+
+    plan = preflight_sync_day(DATE, yes=True, deps=deps)
+
+    assert plan.weightxreps_rows[:3] == (
+        {"bw": 72.3, "lb": 0},
+        {"on": DATE},
+        {
+            "eid": 20,
+            "erows": [{"w": {"v": 51.0, "lb": 0}, "r": 12, "s": 3, "type": 0}],
+        },
+    )
+    assert "@ 72.3 bw" in plan.updated_daily
+    assert "#Barbell Row" in plan.updated_daily
+    assert_no_writes(deps, daily, original)
+
+
+def test_preflight_aborts_before_writes_for_unrepresentable_remote_strength_with_empty_daily(tmp_path):
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[activity(1, "2026-07-03 07:00:00")],
+        existing_remote=True,
+        remote_snapshot_error=RuntimeError("remote strength is unrepresentable"),
+    )
+    original = daily.read_text(encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="unrepresentable"):
+        preflight_sync_day(DATE, yes=True, deps=deps)
+
+    assert_no_writes(deps, daily, original)
+
+
+@pytest.mark.parametrize(
+    ("local_content", "remote"),
+    [
+        (
+            """```text
+2026-07-03
+@ 71.4 bw
+```""",
+            ParsedTrainingDay(date=DATE, body_weight_kg=72.3),
+        ),
+        (
+            """```text
+2026-07-03
+
+#Barbell Row
+50kg x 12, 12, 12
+```""",
+            ParsedTrainingDay(
+                date=DATE,
+                body_weight_kg=None,
+                exercises=[
+                    ParsedExercise(
+                        name="Barbell Row",
+                        sets=[ParsedSetLine(weight_kg=51.0, reps=(12, 12, 12))],
+                    )
+                ],
+            ),
+        ),
+    ],
+    ids=["bodyweight-divergence", "strength-divergence"],
+)
+def test_preflight_aborts_before_writes_when_local_and_remote_preserved_state_diverge(
+    tmp_path,
+    local_content,
+    remote,
+):
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[activity(1, "2026-07-03 07:00:00")],
+        daily_content=local_content,
+        existing_remote=True,
+        remote_preserved=remote,
+        exercise_ids={"Barbell Row": 20},
+    )
+    original = daily.read_text(encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="diverge"):
+        preflight_sync_day(DATE, yes=True, deps=deps)
+
+    assert_no_writes(deps, daily, original)
+
+
 def test_preflight_builds_equal_weightxreps_rows_on_deterministic_retry(tmp_path):
     deps, daily = fake_dependencies(
         tmp_path,
@@ -654,7 +805,7 @@ def test_build_complete_training_day_maps_virtual_ride_to_cycling():
     assert complete.exercises[0].name == "Cycling"
 
 
-def test_build_complete_training_day_ignores_non_cardio_activities_and_preserves_strength():
+def test_build_complete_training_day_treats_strength_as_local_only_and_preserves_strength():
     strength = ParsedExercise(
         name="Barbell Row",
         sets=[ParsedSetLine(weight_kg=51.0, reps=(12, 12, 12))],
@@ -681,7 +832,7 @@ def test_build_complete_training_day_ignores_non_cardio_activities_and_preserves
     assert [exercise.name for exercise in complete.exercises] == ["Barbell Row", "Running"]
 
 
-def test_preflight_renders_non_cardio_activity_without_planning_weightxreps_cardio(tmp_path):
+def test_preflight_renders_strength_activity_without_planning_duplicate_weightxreps_cardio(tmp_path):
     deps, daily = fake_dependencies(
         tmp_path,
         activities=[activity(10, "2026-07-03 07:00:00", "strength_training")],
@@ -694,4 +845,61 @@ def test_preflight_renders_non_cardio_activity_without_planning_weightxreps_card
 
     assert "#Strength_training" in plan.updated_daily
     assert plan.weightxreps_rows == ({"on": DATE},)
+    assert_no_writes(deps, daily, original)
+
+
+@pytest.mark.parametrize(
+    ("type_key", "expected_name", "expected_eid"),
+    [
+        ("walking", "Walking", 50),
+        ("lap_swimming", "Swimming", 60),
+        ("indoor_rowing", "Rowing", 70),
+        ("cardio", "Cardio", 80),
+    ],
+)
+def test_preflight_maps_supported_non_run_cycle_activities_to_existing_exercises(
+    tmp_path,
+    type_key,
+    expected_name,
+    expected_eid,
+):
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[activity(10, "2026-07-03 07:00:00", type_key)],
+    )
+    original = daily.read_text(encoding="utf-8")
+
+    plan = preflight_sync_day(DATE, yes=True, deps=deps)
+
+    assert plan.weightxreps_rows[1]["eid"] == expected_eid
+    assert expected_name in deps.weightxreps.exercise_ids_map
+    assert_no_writes(deps, daily, original)
+
+
+@pytest.mark.parametrize("type_key", ["yoga", "soccer", "unknown_activity"])
+def test_preflight_rejects_unsupported_garmin_activity_before_writes(tmp_path, type_key):
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[activity(10, "2026-07-03 07:00:00", type_key)],
+    )
+    original = daily.read_text(encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="Unsupported Garmin activity"):
+        preflight_sync_day(DATE, yes=True, deps=deps)
+
+    assert_no_writes(deps, daily, original)
+
+
+def test_preflight_rejects_unresolved_supported_activity_before_writes(tmp_path):
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[activity(10, "2026-07-03 07:00:00", "walking")],
+        user_id=123,
+    )
+    deps.weightxreps.exercise_ids_map = {}
+    original = daily.read_text(encoding="utf-8")
+
+    with pytest.raises(ExerciseResolutionRequired):
+        preflight_sync_day(DATE, yes=True, deps=deps)
+
     assert_no_writes(deps, daily, original)

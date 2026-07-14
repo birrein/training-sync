@@ -101,11 +101,22 @@ def build_complete_training_day(
 
 
 def _activity_exercise_name(type_key: str) -> str | None:
-    if "run" in type_key:
+    normalized = type_key.casefold().replace("-", "_").replace(" ", "_")
+    if "strength" in normalized:
+        return None
+    if "run" in normalized:
         return "Running"
-    if "cycl" in type_key or "ride" in type_key:
+    if "cycl" in normalized or "ride" in normalized:
         return "Cycling"
-    return None
+    if "walk" in normalized:
+        return "Walking"
+    if "swim" in normalized:
+        return "Swimming"
+    if "row" in normalized:
+        return "Rowing"
+    if normalized in {"cardio", "generic_cardio"}:
+        return "Cardio"
+    raise RuntimeError(f"Unsupported Garmin activity type: {type_key}")
 
 
 def _activity_comment(activity: GarminActivity) -> str:
@@ -146,6 +157,20 @@ def preflight_sync_day(date: str, *, yes: bool, deps: SyncDependencies) -> SyncP
     if training_section_has_content(original_daily) and not yes:
         raise RuntimeError(f"Daily training section for {date} has content; rerun with --yes to replace it")
 
+    local_preserved = (
+        load_weightxreps_day_from_vault(deps.vault_root, date)
+        if training_section
+        else ParsedTrainingDay(date=date, body_weight_kg=None)
+    )
+    activity_exercise_names = [
+        exercise_name
+        for activity in activities
+        if (exercise_name := _activity_exercise_name(activity.type_key)) is not None
+    ]
+    remote_snapshot = deps.weightxreps.remote_day_snapshot(date)
+    if remote_snapshot.has_content and not yes:
+        raise RuntimeError(f"Weight x Reps day {date} has content; rerun with --yes to replace it")
+
     if deps.user_id is not None:
         exercise_ids = deps.weightxreps.exercise_catalog(deps.user_id)
         catalog_source = "full_catalog"
@@ -153,21 +178,15 @@ def preflight_sync_day(date: str, *, yes: bool, deps: SyncDependencies) -> SyncP
         exercise_ids = deps.weightxreps.exercise_ids(date)
         catalog_source = "partial_jeditor"
 
-    preserved = (
-        load_weightxreps_day_from_vault(deps.vault_root, date)
-        if training_section
-        else ParsedTrainingDay(date=date, body_weight_kg=None)
-    )
-    complete_day = build_complete_training_day(date, preserved, activities)
-    rendered_parts = []
-    rendered_strength = render_strength_text(complete_day)
-    if rendered_strength is not None:
-        rendered_parts.append(f"```text\n{rendered_strength}\n```")
-    rendered_parts.append(render_training_activities(date, activities))
-    updated_daily = replace_training_section(original_daily, "\n\n".join(rendered_parts))
+    preserved_exercise_names = [
+        exercise.name
+        for day in (local_preserved, remote_snapshot.preserved)
+        for exercise in day.exercises
+        if all(set_line.set_type == 0 for set_line in exercise.sets)
+    ]
     resolved_exercise_ids = resolve_exercise_ids(
         date=date,
-        exercise_names=[exercise.name for exercise in complete_day.exercises],
+        exercise_names=preserved_exercise_names + activity_exercise_names,
         local_mappings=deps.mappings,
         remote_exercise_ids=exercise_ids,
         catalog_source=catalog_source,
@@ -181,10 +200,20 @@ def preflight_sync_day(date: str, *, yes: bool, deps: SyncDependencies) -> SyncP
             "Integrated sync cannot create Weight x Reps exercises: "
             + ", ".join(exercises_to_create)
         )
+    reconciled_preserved = _reconcile_preserved_training_day(
+        date,
+        local_preserved,
+        remote_snapshot.preserved,
+        resolved_exercise_ids,
+    )
+    complete_day = build_complete_training_day(date, reconciled_preserved, activities)
+    rendered_parts = []
+    rendered_strength = render_strength_text(reconciled_preserved)
+    if rendered_strength is not None:
+        rendered_parts.append(f"```text\n{rendered_strength}\n```")
+    rendered_parts.append(render_training_activities(date, activities))
+    updated_daily = replace_training_section(original_daily, "\n\n".join(rendered_parts))
     rows = tuple(build_jeditor_rows(complete_day, resolved_exercise_ids))
-
-    if deps.weightxreps.day_has_content(date) and not yes:
-        raise RuntimeError(f"Weight x Reps day {date} has content; rerun with --yes to replace it")
 
     return SyncPlan(
         date=date,
@@ -194,6 +223,85 @@ def preflight_sync_day(date: str, *, yes: bool, deps: SyncDependencies) -> SyncP
         updated_daily=updated_daily,
         weightxreps_rows=rows,
     )
+
+
+def _reconcile_preserved_training_day(
+    date: str,
+    local: ParsedTrainingDay,
+    remote: ParsedTrainingDay,
+    exercise_ids: dict[str, int | None],
+) -> ParsedTrainingDay:
+    if (
+        local.body_weight_kg is not None
+        and remote.body_weight_kg is not None
+        and local.body_weight_kg != remote.body_weight_kg
+    ):
+        raise RuntimeError(
+            f"Local and remote bodyweight diverge for {date}: "
+            f"local={local.body_weight_kg:g}, remote={remote.body_weight_kg:g}"
+        )
+    body_weight = (
+        local.body_weight_kg
+        if local.body_weight_kg is not None
+        else remote.body_weight_kg
+    )
+
+    local_strength = _strength_exercises(local)
+    remote_strength = _strength_exercises(remote)
+    local_groups = _exercises_by_id(local_strength, exercise_ids)
+    remote_groups = _exercises_by_id(remote_strength, exercise_ids)
+    for exercise_id in local_groups.keys() & remote_groups.keys():
+        local_sets = [exercise.sets for exercise in local_groups[exercise_id]]
+        remote_sets = [exercise.sets for exercise in remote_groups[exercise_id]]
+        if local_sets != remote_sets:
+            raise RuntimeError(
+                f"Local and remote strength diverge for {date}, exercise {exercise_id}: "
+                f"local={local_sets!r}, remote={remote_sets!r}"
+            )
+
+    merged = list(local_strength)
+    local_ids = set(local_groups)
+    merged.extend(
+        exercise
+        for exercise in remote_strength
+        if _resolved_exercise_id(exercise.name, exercise_ids) not in local_ids
+    )
+    return ParsedTrainingDay(
+        date=date,
+        body_weight_kg=body_weight,
+        exercises=merged,
+    )
+
+
+def _strength_exercises(day: ParsedTrainingDay) -> list[ParsedExercise]:
+    return [
+        exercise
+        for exercise in day.exercises
+        if all(set_line.set_type == 0 for set_line in exercise.sets)
+    ]
+
+
+def _exercises_by_id(
+    exercises: Sequence[ParsedExercise],
+    exercise_ids: dict[str, int | None],
+) -> dict[int, list[ParsedExercise]]:
+    grouped: dict[int, list[ParsedExercise]] = {}
+    for exercise in exercises:
+        grouped.setdefault(
+            _resolved_exercise_id(exercise.name, exercise_ids),
+            [],
+        ).append(exercise)
+    return grouped
+
+
+def _resolved_exercise_id(
+    exercise_name: str,
+    exercise_ids: dict[str, int | None],
+) -> int:
+    exercise_id = exercise_ids.get(exercise_name)
+    if exercise_id is None:
+        raise RuntimeError(f"Exercise id resolution missing: {exercise_name}")
+    return exercise_id
 
 
 def write_daily(plan: SyncPlan) -> None:

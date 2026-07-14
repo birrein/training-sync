@@ -158,3 +158,18 @@ def test_render_training_activities_carries_rounded_running_pace_into_minutes():
 
     assert "@ Avg Pace: 01:00.0" in rendered
     assert "@ Avg Pace: 00:60.0" not in rendered
+
+
+def test_render_strength_activity_uses_exact_tag_and_duration():
+    strength = activity(
+        1,
+        "Morning Strength",
+        "strength_training",
+        duration_ms=2_700_000,
+        distance_m=None,
+    )
+
+    rendered = render_training_activities(DATE, [strength])
+
+    assert "#Strength_training" in rendered
+    assert "@ Duration: 00:45:00.0" in rendered

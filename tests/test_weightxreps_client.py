@@ -172,10 +172,19 @@ def test_exercise_catalog_reads_remote_exercise_names():
 
 def _expected_rows():
     return [
+        {"bw": 71.4, "lb": 0},
         {"on": "2026-06-20"},
         {
             "eid": 157728,
-            "erows": [{"w": {"v": 47, "lb": 0}, "r": 8, "s": 1, "type": 0}],
+            "erows": [
+                {
+                    "w": {"v": 47, "lb": 0, "usebw": 1},
+                    "r": 8,
+                    "s": 1,
+                    "type": 0,
+                    "c": "Strength note",
+                }
+            ],
         },
         {"eid": 157737, "erows": [{"type": 1, "t": 1_800_000}]},
         {
@@ -185,7 +194,7 @@ def _expected_rows():
                     "type": 2,
                     "t": 2_700_000,
                     "d": {"val": 279_500_000, "unit": "km"},
-                    "c": "ignored during verification",
+                    "c": "Zwift Ride",
                 }
             ],
         },
@@ -194,6 +203,7 @@ def _expected_rows():
 
 def _observed_blocks():
     return [
+        {"__typename": "JEditorBWTag", "bw": 71.4},
         {
             "__typename": "JEditorEBlock",
             "e": 157728,
@@ -202,22 +212,33 @@ def _observed_blocks():
                     "v": 47,
                     "r": 8,
                     "s": 1,
+                    "lb": 0,
+                    "usebw": 1,
                     "type": 0,
                     "t": None,
                     "d": None,
                     "dunit": None,
+                    "c": "Strength note",
                 }
             ],
         },
         {
             "__typename": "JEditorEBlock",
             "e": 157737,
-            "sets": [{"type": 1, "t": 1_800_000, "d": None, "dunit": None}],
+            "sets": [{"type": 1, "t": 1_800_000, "d": None, "dunit": None, "c": None}],
         },
         {
             "__typename": "JEditorEBlock",
             "e": 157740,
-            "sets": [{"type": 2, "t": 2_700_000, "d": 279_500_000, "dunit": "km"}],
+            "sets": [
+                {
+                    "type": 2,
+                    "t": 2_700_000,
+                    "d": 279_500_000,
+                    "dunit": "km",
+                    "c": "Zwift Ride",
+                }
+            ],
         },
     ]
 
@@ -272,20 +293,34 @@ def test_verify_day_accepts_exact_strength_duration_and_distance_blocks():
 @pytest.mark.parametrize(
     ("mutate", "expected_value", "observed_value"),
     [
-        (lambda blocks: blocks.pop(1), 157737, 157740),
-        (lambda blocks: blocks[2]["sets"][0].pop("dunit"), "km", None),
-        (lambda blocks: blocks[2]["sets"][0].update(type=1), 2, 1),
-        (lambda blocks: blocks[1]["sets"][0].update(t=1_700_000), 1_800_000, 1_700_000),
-        (lambda blocks: blocks[2]["sets"][0].update(d=123), 279_500_000, 123),
-        (lambda blocks: blocks[2]["sets"][0].update(dunit="mi"), "km", "mi"),
+        (lambda blocks: blocks[0].update(bw=72.0), 71.4, 72.0),
+        (lambda blocks: blocks.pop(2), 157737, 157740),
+        (lambda blocks: blocks[3]["sets"][0].pop("dunit"), "km", None),
+        (lambda blocks: blocks[3]["sets"][0].update(type=1), 2, 1),
+        (lambda blocks: blocks[2]["sets"][0].update(t=1_700_000), 1_800_000, 1_700_000),
+        (lambda blocks: blocks[3]["sets"][0].update(d=123), 279_500_000, 123),
+        (lambda blocks: blocks[3]["sets"][0].update(dunit="mi"), "km", "mi"),
+        (lambda blocks: blocks[1]["sets"][0].update(v=48), 47, 48),
+        (lambda blocks: blocks[1]["sets"][0].update(r=9), 8, 9),
+        (lambda blocks: blocks[1]["sets"][0].update(s=2), 1, 2),
+        (lambda blocks: blocks[1]["sets"][0].update(lb=1), 0, 1),
+        (lambda blocks: blocks[1]["sets"][0].update(usebw=0), 1, 0),
+        (lambda blocks: blocks[3]["sets"][0].update(c="Changed"), "Zwift Ride", "Changed"),
     ],
     ids=[
+        "wrong-bodyweight",
         "missing-exercise",
         "missing-field",
         "wrong-type",
         "wrong-time",
         "wrong-distance",
         "wrong-unit",
+        "wrong-strength-weight",
+        "wrong-strength-reps",
+        "wrong-strength-sets",
+        "wrong-strength-unit",
+        "wrong-strength-bodyweight-flag",
+        "wrong-comment",
     ],
 )
 def test_verify_day_raises_structured_mismatch_for_relevant_differences(
@@ -306,27 +341,27 @@ def test_verify_day_raises_structured_mismatch_for_relevant_differences(
 
 def test_verify_day_rejects_duplicate_exercise_blocks_and_preserves_sequence():
     blocks = _observed_blocks()
-    blocks.insert(1, blocks[0].copy())
+    blocks.insert(2, blocks[1].copy())
     client = _verification_client(blocks)
 
     with pytest.raises(VerificationMismatch) as exc:
         client.verify_day("2026-06-20", _expected_rows())
 
-    assert [block["eid"] for block in exc.value.expected] == [157728, 157737, 157740]
-    assert [block["eid"] for block in exc.value.observed] == [157728, 157728, 157737, 157740]
+    assert [block["eid"] for block in exc.value.expected if "eid" in block] == [157728, 157737, 157740]
+    assert [block["eid"] for block in exc.value.observed if "eid" in block] == [157728, 157728, 157737, 157740]
 
 
 def test_verify_day_error_payload_contains_normalized_expected_and_observed_distance():
     blocks = _observed_blocks()
-    blocks[2]["sets"][0]["dunit"] = "mi"
+    blocks[3]["sets"][0]["dunit"] = "mi"
     client = _verification_client(blocks)
 
     with pytest.raises(VerificationMismatch) as exc:
         client.verify_day("2026-06-20", _expected_rows())
 
-    assert exc.value.expected[2]["sets"][0]["d"] == 279_500_000
-    assert exc.value.expected[2]["sets"][0]["dunit"] == "km"
-    assert exc.value.observed[2]["sets"][0]["dunit"] == "mi"
+    assert exc.value.expected[3]["sets"][0]["d"] == 279_500_000
+    assert exc.value.expected[3]["sets"][0]["dunit"] == "km"
+    assert exc.value.observed[3]["sets"][0]["dunit"] == "mi"
     assert "expected=" in str(exc.value)
     assert "observed=" in str(exc.value)
 
@@ -341,6 +376,75 @@ def test_verify_day_treats_missing_day_as_empty_observed_payload():
         client.verify_day("2026-06-20", _expected_rows())
 
     assert exc.value.observed == []
+
+
+def test_remote_day_snapshot_preserves_representable_bodyweight_and_type_zero_strength():
+    day = {
+        "baseBW": None,
+        "exercises": [{"e": {"id": 157728, "name": "Barbell Row"}}],
+        "did": [
+            {"__typename": "JEditorDayTag", "on": "2026-06-20"},
+            {"__typename": "JEditorBWTag", "bw": 71.4},
+            {
+                "__typename": "JEditorEBlock",
+                "e": 157728,
+                "sets": [
+                    {
+                        "v": 47,
+                        "r": 8,
+                        "s": 3,
+                        "lb": 0,
+                        "usebw": 0,
+                        "type": 0,
+                        "t": None,
+                        "d": None,
+                        "dunit": None,
+                        "c": None,
+                    }
+                ],
+            },
+        ],
+    }
+    client = WeightxRepsClient(
+        access_token="token-123",
+        session=FakeSession({"data": {"jeditor": day}}),
+    )
+
+    snapshot = client.remote_day_snapshot("2026-06-20")
+
+    assert snapshot.has_content is True
+    assert snapshot.preserved.body_weight_kg == 71.4
+    assert snapshot.preserved.exercises[0].name == "Barbell Row"
+    assert snapshot.preserved.exercises[0].sets[0].weight_kg == 47
+    assert snapshot.preserved.exercises[0].sets[0].reps == (8, 8, 8)
+
+
+@pytest.mark.parametrize(
+    "set_row",
+    [
+        {"v": 47, "r": 8, "s": 3, "lb": 1, "usebw": 0, "type": 0},
+        {"v": 47, "r": 8, "s": 3, "lb": 0, "usebw": 0, "type": 0, "c": "note"},
+        {"v": 47, "r": 8, "s": 0, "lb": 0, "usebw": 0, "type": 0},
+        {"v": 47, "r": 8, "s": 3, "lb": 0, "usebw": 0, "type": 9},
+    ],
+    ids=["pounds", "strength-comment", "invalid-set-count", "unknown-type"],
+)
+def test_remote_day_snapshot_rejects_unrepresentable_strength_before_replacement(set_row):
+    day = {
+        "baseBW": None,
+        "exercises": [{"e": {"id": 157728, "name": "Barbell Row"}}],
+        "did": [
+            {"__typename": "JEditorDayTag", "on": "2026-06-20"},
+            {"__typename": "JEditorEBlock", "e": 157728, "sets": [set_row]},
+        ],
+    }
+    client = WeightxRepsClient(
+        access_token="token-123",
+        session=FakeSession({"data": {"jeditor": day}}),
+    )
+
+    with pytest.raises(RuntimeError, match="unrepresentable"):
+        client.remote_day_snapshot("2026-06-20")
 
 
 def _nested_values(value):

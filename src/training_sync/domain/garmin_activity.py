@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from typing import cast
 
 
@@ -33,10 +34,19 @@ class GarminActivity:
         activity_type = cast(Mapping[str, object], raw["activityType"])
         duration_seconds = float(raw["duration"])
         distance = raw.get("distance")
+        start_time = raw.get("startTimeLocal")
+        if not isinstance(start_time, str):
+            raise ValueError("Garmin startTimeLocal must use YYYY-MM-DD HH:MM:SS")
+        try:
+            datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
+        except ValueError as exc:
+            raise ValueError(
+                "Garmin startTimeLocal must use YYYY-MM-DD HH:MM:SS"
+            ) from exc
         return cls(
             activity_id=int(raw["activityId"]),
             name=str(raw["activityName"]),
-            start_time=str(raw["startTimeLocal"]),
+            start_time=start_time,
             type_key=str(activity_type["typeKey"]),
             duration_ms=round(duration_seconds * 1000),
             distance_m=float(distance) if distance is not None else None,

@@ -1,9 +1,16 @@
 """GraphQL client for Weight x Reps."""
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 import requests
+
+from training_sync.renderers.weightxreps_text import (
+    ParsedExercise,
+    ParsedSetLine,
+    ParsedTrainingDay,
+)
 
 GRAPHQL_ENDPOINT = "https://weightxreps.net/api/graphql"
 
@@ -75,6 +82,16 @@ class VerificationMismatch(RuntimeError):
         )
 
 
+class UnrepresentableRemoteDay(RuntimeError):
+    """Raised when a remote day cannot be preserved without losing data."""
+
+
+@dataclass(frozen=True)
+class RemoteDaySnapshot:
+    preserved: ParsedTrainingDay
+    has_content: bool
+
+
 class WeightxRepsClient:
     def __init__(
         self,
@@ -122,6 +139,11 @@ class WeightxRepsClient:
             return False
         return bool(day.get("did") or day.get("baseBW"))
 
+    def remote_day_snapshot(self, date: str) -> RemoteDaySnapshot:
+        """Read the remote day and retain every safely representable preserved field."""
+
+        return _remote_day_snapshot(date, self.jeditor_day(date))
+
     def exercise_ids(self, date: str) -> dict[str, int]:
         day = self.jeditor_day(date)
         if not day:
@@ -160,17 +182,36 @@ def _default_date_from_rows(rows: list[dict[str, Any]]) -> str:
 
 
 def _normalize_expected_blocks(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [
-        {
-            "eid": row["eid"],
-            "sets": [_normalize_expected_set(set_row) for set_row in row.get("erows") or []],
-        }
-        for row in rows
-        if row.get("eid") is not None
-    ]
+    normalized: list[dict[str, Any]] = []
+    for row in rows:
+        if "bw" in row:
+            normalized.append({"bw": row["bw"]})
+        elif row.get("eid") is not None:
+            normalized.append(
+                {
+                    "eid": row["eid"],
+                    "sets": [
+                        _normalize_expected_set(set_row)
+                        for set_row in row.get("erows") or []
+                    ],
+                }
+            )
+    return normalized
 
 
 def _normalize_expected_set(set_row: dict[str, Any]) -> dict[str, Any]:
+    set_type = set_row.get("type")
+    if set_type == 0:
+        weight = set_row.get("w") or {}
+        return {
+            "type": set_type,
+            "v": weight.get("v"),
+            "r": set_row.get("r"),
+            "s": set_row.get("s"),
+            "lb": weight.get("lb"),
+            "usebw": weight.get("usebw", 0),
+            "c": set_row.get("c"),
+        }
     distance = set_row.get("d")
     if isinstance(distance, dict):
         distance_value = distance.get("val")
@@ -183,26 +224,145 @@ def _normalize_expected_set(set_row: dict[str, Any]) -> dict[str, Any]:
         "t": set_row.get("t"),
         "d": distance_value,
         "dunit": distance_unit,
+        "c": set_row.get("c"),
     }
 
 
 def _normalize_observed_blocks(day: dict[str, Any] | None) -> list[dict[str, Any]]:
     if not day:
         return []
-    return [
-        {
-            "eid": token.get("e"),
-            "sets": [_normalize_observed_set(set_row) for set_row in token.get("sets") or []],
-        }
-        for token in day.get("did") or []
-        if token.get("__typename") == "JEditorEBlock"
-    ]
+    normalized: list[dict[str, Any]] = []
+    for token in day.get("did") or []:
+        token_type = token.get("__typename")
+        if token_type == "JEditorBWTag":
+            normalized.append({"bw": token.get("bw")})
+        elif token_type == "JEditorEBlock":
+            normalized.append(
+                {
+                    "eid": token.get("e"),
+                    "sets": [
+                        _normalize_observed_set(set_row)
+                        for set_row in token.get("sets") or []
+                    ],
+                }
+            )
+    return normalized
 
 
 def _normalize_observed_set(set_row: dict[str, Any]) -> dict[str, Any]:
+    set_type = set_row.get("type")
+    if set_type == 0:
+        return {
+            "type": set_type,
+            "v": set_row.get("v"),
+            "r": set_row.get("r"),
+            "s": set_row.get("s"),
+            "lb": set_row.get("lb"),
+            "usebw": set_row.get("usebw", 0),
+            "c": set_row.get("c"),
+        }
     return {
-        "type": set_row.get("type"),
+        "type": set_type,
         "t": set_row.get("t"),
         "d": set_row.get("d"),
         "dunit": set_row.get("dunit"),
+        "c": set_row.get("c"),
     }
+
+
+def _remote_day_snapshot(
+    date: str,
+    day: dict[str, Any] | None,
+) -> RemoteDaySnapshot:
+    if not day:
+        return RemoteDaySnapshot(
+            preserved=ParsedTrainingDay(date=date, body_weight_kg=None),
+            has_content=False,
+        )
+
+    exercise_names = {
+        int(exercise["id"]): str(exercise["name"])
+        for stat in day.get("exercises") or []
+        if (exercise := stat.get("e"))
+        and exercise.get("id") is not None
+        and exercise.get("name")
+    }
+    body_weight: float | None = None
+    exercises: list[ParsedExercise] = []
+    has_content = False
+
+    for token in day.get("did") or []:
+        token_type = token.get("__typename")
+        if token_type == "JEditorDayTag":
+            continue
+        has_content = True
+        if token_type == "JEditorBWTag":
+            if body_weight is not None or token.get("bw") is None:
+                _unrepresentable(date, "duplicate or missing bodyweight")
+            body_weight = float(token["bw"])
+            continue
+        if token_type != "JEditorEBlock":
+            _unrepresentable(date, f"unsupported token {token_type!r}")
+
+        sets = token.get("sets") or []
+        set_types = {set_row.get("type") for set_row in sets}
+        if sets and set_types.issubset({1, 2}):
+            continue
+        if not sets or set_types != {0}:
+            _unrepresentable(date, f"exercise {token.get('e')!r} has unsupported set types")
+
+        exercise_id = token.get("e")
+        try:
+            exercise_name = exercise_names[int(exercise_id)]
+        except (KeyError, TypeError, ValueError):
+            _unrepresentable(date, f"exercise {exercise_id!r} has no resolvable name")
+        exercises.append(
+            ParsedExercise(
+                name=exercise_name,
+                sets=[_remote_strength_set(date, exercise_id, set_row) for set_row in sets],
+            )
+        )
+
+    return RemoteDaySnapshot(
+        preserved=ParsedTrainingDay(
+            date=date,
+            body_weight_kg=body_weight,
+            exercises=exercises,
+        ),
+        has_content=has_content,
+    )
+
+
+def _remote_strength_set(
+    date: str,
+    exercise_id: object,
+    set_row: dict[str, Any],
+) -> ParsedSetLine:
+    if set_row.get("lb") != 0:
+        _unrepresentable(date, f"exercise {exercise_id!r} uses non-metric weight")
+    if set_row.get("c") not in (None, ""):
+        _unrepresentable(date, f"exercise {exercise_id!r} has a strength comment")
+    if any(set_row.get(field) is not None for field in ("t", "d", "dunit")):
+        _unrepresentable(date, f"exercise {exercise_id!r} has mixed strength metadata")
+    try:
+        weight = float(set_row["v"])
+        reps = int(set_row["r"])
+        set_count = int(set_row["s"])
+    except (KeyError, TypeError, ValueError):
+        _unrepresentable(date, f"exercise {exercise_id!r} has invalid strength fields")
+    if set_count < 1 or reps < 0:
+        _unrepresentable(date, f"exercise {exercise_id!r} has invalid reps or set count")
+    usebw = set_row.get("usebw")
+    if usebw not in (None, False, True, 0, 1):
+        _unrepresentable(date, f"exercise {exercise_id!r} has invalid usebw")
+    return ParsedSetLine(
+        weight_kg=weight,
+        reps=(reps,) * set_count,
+        uses_bodyweight=bool(usebw),
+    )
+
+
+def _unrepresentable(date: str, detail: str) -> None:
+    raise UnrepresentableRemoteDay(
+        f"Weight x Reps day {date} is unrepresentable without data loss: {detail}"
+    )

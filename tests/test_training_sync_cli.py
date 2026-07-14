@@ -38,6 +38,43 @@ def test_training_sync_sync_rejects_invalid_date_before_client_construction(monk
     assert exc.value.code == 2
 
 
+def test_sync_day_cli_prints_structured_exercise_resolution_error(monkeypatch, tmp_path, capsys):
+    unresolved = UnresolvedExercise(
+        incoming_exercise="Walking",
+        normalized_name="walking",
+        reason="no_local_mapping",
+        candidates=[],
+    )
+    monkeypatch.setattr(
+        cli,
+        "load_tokens",
+        lambda path: TokenSet(
+            access_token="token",
+            refresh_token="refresh",
+            expires_in=3600,
+            token_type="Bearer",
+        ),
+    )
+    monkeypatch.setattr(cli, "weightxreps_token_path", lambda: tmp_path / "token.json")
+    monkeypatch.setattr(cli, "build_weightxreps_client", lambda tokens, token_path: "client")
+    monkeypatch.setattr(cli, "get_client", lambda: "garmin")
+    monkeypatch.setattr(cli, "load_weightxreps_user_id", lambda: None)
+    monkeypatch.setattr(cli, "load_exercise_mappings", lambda path: [])
+    monkeypatch.setattr(
+        cli,
+        "sync_day",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            ExerciseResolutionRequired("2026-07-03", [unresolved])
+        ),
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        cli.sync_day_cli("2026-07-03", yes=True)
+
+    assert exc.value.code == 2
+    assert '"status": "exercise_resolution_required"' in capsys.readouterr().out
+
+
 def test_training_sync_garmin_fetch_dispatches_to_existing_fetch(monkeypatch):
     calls = []
 
