@@ -118,3 +118,43 @@ def test_render_training_activities_formats_real_metrics_and_omits_missing_dista
     assert "@ Calories: 530" in rendered
     assert "@ Duration: 00:15:00.0" in duration_only_block
     assert "km" not in duration_only_block
+
+
+def test_render_training_activities_carries_rounded_duration_across_boundaries():
+    activities = [
+        activity(
+            1,
+            "Minute Boundary",
+            "cardio",
+            duration_ms=59_950,
+            distance_m=None,
+        ),
+        activity(
+            2,
+            "Hour Boundary",
+            "cardio",
+            duration_ms=3_599_999,
+            distance_m=None,
+        ),
+    ]
+
+    rendered = render_training_activities(DATE, activities)
+
+    assert "@ Duration: 00:01:00.0" in rendered
+    assert "@ Duration: 01:00:00.0" in rendered
+    assert ":60.0" not in rendered
+
+
+def test_render_training_activities_carries_rounded_running_pace_into_minutes():
+    run = activity(
+        1,
+        "Pace Boundary",
+        "running",
+        duration_ms=59_950,
+        distance_m=1_000,
+    )
+
+    rendered = render_training_activities(DATE, [run])
+
+    assert "@ Avg Pace: 01:00.0" in rendered
+    assert "@ Avg Pace: 00:60.0" not in rendered

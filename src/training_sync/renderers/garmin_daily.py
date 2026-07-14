@@ -6,10 +6,18 @@ from training_sync.domain.garmin_activity import GarminActivity
 
 
 def _duration_text(duration_ms: int) -> str:
-    seconds = duration_ms / 1000
-    hours, remainder = divmod(seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    return f"{int(hours):02d}:{int(minutes):02d}:{seconds:04.1f}"
+    total_tenths = round(duration_ms / 100)
+    hours, remainder = divmod(total_tenths, 36_000)
+    minutes, remainder = divmod(remainder, 600)
+    seconds, tenths = divmod(remainder, 10)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}.{tenths}"
+
+
+def _pace_text(duration_ms: int, distance_m: float) -> str:
+    total_tenths = round(duration_ms * 10 / distance_m)
+    minutes, remainder = divmod(total_tenths, 600)
+    seconds, tenths = divmod(remainder, 10)
+    return f"{minutes:02d}:{seconds:02d}.{tenths}"
 
 
 def _activity_tag(type_key: str) -> str:
@@ -38,9 +46,7 @@ def _render_activity(date: str, activity: GarminActivity) -> str:
     lines.append(f"@ Duration: {_duration_text(activity.duration_ms)}")
 
     if "run" in activity.type_key and activity.distance_m:
-        pace_seconds = activity.duration_ms / 1000 / (activity.distance_m / 1000)
-        pace_minutes, pace_seconds = divmod(pace_seconds, 60)
-        lines.append(f"@ Avg Pace: {int(pace_minutes):02d}:{pace_seconds:04.1f}")
+        lines.append(f"@ Avg Pace: {_pace_text(activity.duration_ms, activity.distance_m)}")
 
     metadata = (
         ("Avg HR", activity.average_hr),
