@@ -163,10 +163,21 @@ def test_rendered_supported_aliases_round_trip_to_canonical_preview_rows_and_ski
     daily.parent.mkdir(parents=True)
     aliases = [
         ("running", "Running", 30),
+        ("trail_running", "Running", 30),
+        ("treadmill_running", "Running", 30),
+        ("virtual_run", "Running", 30),
+        ("cycling", "Cycling", 40),
         ("virtual_ride", "Cycling", 40),
+        ("ride", "Cycling", 40),
+        ("indoor_cycling", "Cycling", 40),
+        ("road_biking", "Cycling", 40),
+        ("mountain_biking", "Cycling", 40),
         ("walking", "Walking", 50),
+        ("swimming", "Swimming", 60),
         ("lap_swimming", "Swimming", 60),
+        ("rowing", "Rowing", 70),
         ("indoor_rowing", "Rowing", 70),
+        ("cardio", "Cardio", 80),
         ("generic_cardio", "Cardio", 80),
         ("strength_training", None, None),
     ]
@@ -199,8 +210,16 @@ def test_rendered_supported_aliases_round_trip_to_canonical_preview_rows_and_ski
         exercise_ids=exercise_ids,
     )
 
-    assert [exercise.name for exercise in loaded.exercises] == list(exercise_ids)
-    assert [row.get("eid") for row in rows if "eid" in row] == list(exercise_ids.values())
+    expected_names = [name for _, name, _ in aliases if name is not None]
+    expected_ids = [exercise_id for _, name, exercise_id in aliases if name is not None]
+    rendered_tags = [line.removeprefix("#") for line in rendered.splitlines() if line.startswith("#")]
+
+    assert rendered_tags == [
+        name if name is not None else "Strength_training"
+        for _, name, _ in aliases
+    ]
+    assert [exercise.name for exercise in loaded.exercises] == expected_names
+    assert [row.get("eid") for row in rows if "eid" in row] == expected_ids
     for row in rows[1:]:
         assert row["erows"][0]["type"] == 2
         assert row["erows"][0]["t"] == 1_800_000

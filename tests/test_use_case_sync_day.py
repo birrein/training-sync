@@ -929,6 +929,12 @@ def test_preflight_renders_strength_activity_without_planning_duplicate_weightxr
 @pytest.mark.parametrize(
     ("type_key", "expected_name", "expected_eid"),
     [
+        ("trail_running", "Running", 30),
+        ("treadmill_running", "Running", 30),
+        ("virtual_run", "Running", 30),
+        ("indoor_cycling", "Cycling", 40),
+        ("road_biking", "Cycling", 40),
+        ("mountain_biking", "Cycling", 40),
         ("walking", "Walking", 50),
         ("lap_swimming", "Swimming", 60),
         ("indoor_rowing", "Rowing", 70),
