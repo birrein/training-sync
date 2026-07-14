@@ -13,9 +13,9 @@
 - [x] 3.3 Add failing mixed-day tests proving strength and every cardio activity are preserved.
 
 ## 4. Remote reconciliation and verification
-- [ ] 4.1 Add failing client tests for confirmation, full-day replacement, and structured read-back comparison.
-- [ ] 4.2 Implement remote replacement and expected-versus-observed verification errors.
-- [ ] 4.3 Add orchestration tests proving the daily is retained after a remote failure and retries are idempotent.
+- [x] 4.1 Add failing client tests for confirmation, full-day replacement, and structured read-back comparison.
+- [x] 4.2 Implement remote replacement and expected-versus-observed verification errors.
+- [x] 4.3 Add orchestration tests proving the daily is retained after a remote failure and retries are idempotent.
 
 ## 5. Documentation and end-to-end verification
 - [ ] 5.1 Update README usage and remove the obsolete marker-only limitation.
