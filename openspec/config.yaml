@@ -1,0 +1,23 @@
+schema: spec-driven
+
+context: |
+  Training Sync is a Python 3.10+ setuptools project exposing the
+  `training-sync` console command. Run tests with `python -m pytest`.
+
+  Garmin Connect is the source of truth for completed activities. An existing
+  Obsidian daily note is the intermediate representation. Weight x Reps is a
+  reconciled full-day destination whose writes must be verified by read-back.
+
+  Implement changes test-first. Never create a missing daily note, silently
+  create an ambiguous Weight x Reps exercise, or report synchronization success
+  before the saved remote fields have been read back and verified.
+
+rules:
+  specs:
+    - Use SHALL or MUST for normative requirements and include at least one testable scenario per requirement.
+    - Preserve strength activities and every Garmin activity for the requested day.
+  tasks:
+    - Order tasks by dependency and use checkbox syntax for every implementation task.
+    - Require a failing test before production changes and a focused passing test afterward.
+  plan:
+    - Include exact file paths, commands, expected outcomes, and Conventional Commit checkpoints.

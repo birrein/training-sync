@@ -22,3 +22,7 @@ garmin_token.json
 *.log
 .worktrees/
 *.egg-info/
+
+# Generated OpenSpec adapters
+.codex/
+.opencode/
