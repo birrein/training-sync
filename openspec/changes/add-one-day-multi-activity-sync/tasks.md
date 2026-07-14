@@ -8,9 +8,9 @@
 - [x] 2.2 Implement combined rendering and existing-daily replacement.
 
 ## 3. Structured Weight x Reps cardio rows
-- [ ] 3.1 Add failing parser/domain tests for duration, distance, unit, set type, and comments.
-- [ ] 3.2 Implement `type: 1` and `type: 2` JEditor conversion with real fields.
-- [ ] 3.3 Add failing mixed-day tests proving strength and every cardio activity are preserved.
+- [x] 3.1 Add failing parser/domain tests for duration, distance, unit, set type, and comments.
+- [x] 3.2 Implement `type: 1` and `type: 2` JEditor conversion with real fields.
+- [x] 3.3 Add failing mixed-day tests proving strength and every cardio activity are preserved.
 
 ## 4. Remote reconciliation and verification
 - [ ] 4.1 Add failing client tests for confirmation, full-day replacement, and structured read-back comparison.
