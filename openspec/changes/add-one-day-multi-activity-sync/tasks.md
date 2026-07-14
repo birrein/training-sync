@@ -1,7 +1,7 @@
 ## 1. CLI contract and orchestration preflight
-- [ ] 1.1 Add failing CLI tests for `sync DATE [--yes]` dispatch and validation.
-- [ ] 1.2 Add failing use-case tests for zero, one, and multiple activities plus no-write preflight failures.
-- [ ] 1.3 Implement the minimal CLI and orchestration contract.
+- [x] 1.1 Add failing CLI tests for `sync DATE [--yes]` dispatch and validation.
+- [x] 1.2 Add failing use-case tests for zero, one, and multiple activities plus no-write preflight failures.
+- [x] 1.3 Implement the minimal CLI and orchestration contract.
 
 ## 2. Daily multi-activity rendering
 - [ ] 2.1 Add failing renderer and vault tests for stable multi-activity replacement and confirmation.
