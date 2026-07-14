@@ -293,8 +293,10 @@ git commit -m "feat(weightxreps): encode structured cardio rows"
 **Files:**
 - Modify: `src/training_sync/weightxreps/client.py`
 - Modify: `src/training_sync/use_cases/sync_day.py`
+- Modify: `src/training_sync/use_cases/weightxreps_push.py`
 - Modify: `tests/test_weightxreps_client.py`
 - Modify: `tests/test_use_case_sync_day.py`
+- Modify: `tests/test_weightxreps_push.py`
 
 **Interfaces:**
 - Consumes: complete JEditor rows from Task 3 and `WeightxRepsClient.jeditor_day(date)`.
@@ -317,9 +319,73 @@ Run: `python -m pytest tests/test_weightxreps_client.py -k 'verify or structured
 
 Expected: FAIL because the query omits structured fields and `verify_day` returns a boolean after checking only block count and `type == 0`.
 
-- [ ] **Step 3: Implement normalized expected-versus-observed verification**
+- [ ] **Step 3: Implement normalized expected-versus-observed verification and migrate the existing caller**
 
-Normalize only exercise `eid` and set `type`, `t`, `d`, and `dunit`, preserving set order within exercise blocks. Compare the complete expected block sequence; raise `VerificationMismatch` on any difference. Update existing callers that expect a boolean so they treat normal return as success and the exception as failure.
+Normalize only exercise `eid` and set `type`, `t`, `d`, and `dunit`, preserving set order within exercise blocks. Compare the complete expected block sequence; raise `VerificationMismatch` on any difference. In `src/training_sync/use_cases/weightxreps_push.py`, replace the boolean branch with a plain call so a normal `None` return means success and `VerificationMismatch` propagates unchanged:
+
+```python
+client.save_jeditor(rows)
+client.verify_day(date, rows)
+
+return "replaced" if exists else "saved"
+```
+
+In `tests/test_weightxreps_push.py`, change `FakeWeightxRepsClient.verify_day` to return normally without a boolean, record `(date, rows)`, and optionally raise a supplied verification exception. Add focused tests proving both semantics:
+
+```python
+from training_sync.weightxreps.client import VerificationMismatch
+
+
+class FakeWeightxRepsClient:
+    def __init__(
+        self,
+        existing=False,
+        exercise_ids=None,
+        exercise_catalog=None,
+        verification_error=None,
+    ):
+        self.existing = existing
+        self.exercise_ids_map = exercise_ids or {}
+        self.exercise_catalog_map = exercise_catalog or {}
+        self.exercise_id_calls = []
+        self.exercise_catalog_calls = []
+        self.saved_rows = None
+        self.verify_calls = []
+        self.verification_error = verification_error
+
+    def verify_day(self, date, rows):
+        self.verify_calls.append((date, rows))
+        if self.verification_error is not None:
+            raise self.verification_error
+
+def test_push_weightxreps_day_treats_normal_verification_return_as_success(tmp_path):
+    vault = tmp_path / "vault"
+    _write_daily(vault)
+    client = FakeWeightxRepsClient(existing=False)
+
+    assert push_weightxreps_day(
+        vault, "2026-06-19", client,
+        exercise_ids={"Chin Up": 10}, yes=False,
+    ) == "saved"
+    assert client.verify_calls == [("2026-06-19", client.saved_rows)]
+
+def test_push_weightxreps_day_propagates_verification_mismatch(tmp_path):
+    vault = tmp_path / "vault"
+    _write_daily(vault)
+    mismatch = VerificationMismatch(expected=[], observed=[])
+    client = FakeWeightxRepsClient(existing=False, verification_error=mismatch)
+
+    with pytest.raises(VerificationMismatch) as exc:
+        push_weightxreps_day(
+            vault, "2026-06-19", client,
+            exercise_ids={"Chin Up": 10}, yes=False,
+        )
+    assert exc.value is mismatch
+```
+
+Run: `python -m pytest tests/test_weightxreps_client.py tests/test_weightxreps_push.py -k 'verify or verification' -v`
+
+Expected: PASS; a normal `verify_day` return reaches `"saved"`/`"replaced"`, while `VerificationMismatch` is not converted to a legacy boolean failure.
 
 - [ ] **Step 4: Add failing confirmation, partial failure, and idempotent retry tests**
 
@@ -338,7 +404,7 @@ Expected: PASS for full-day replacement, confirmation, structured verification, 
 - [ ] **Step 7: Commit Task 4**
 
 ```bash
-git add src/training_sync/weightxreps/client.py src/training_sync/use_cases/sync_day.py tests/test_weightxreps_client.py tests/test_use_case_sync_day.py tests/test_weightxreps_push.py
+git add src/training_sync/weightxreps/client.py src/training_sync/use_cases/sync_day.py src/training_sync/use_cases/weightxreps_push.py tests/test_weightxreps_client.py tests/test_use_case_sync_day.py tests/test_weightxreps_push.py
 git commit -m "feat(sync): verify full remote day replacement"
 ```
 
