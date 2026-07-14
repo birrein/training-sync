@@ -35,7 +35,6 @@ def push_weightxreps_day(
         raise RuntimeError(f"Weight x Reps day {date} already has content; rerun with --yes to replace it")
 
     client.save_jeditor(rows)
-    if not client.verify_day(date, rows):
-        raise RuntimeError(f"Weight x Reps verification failed for {date}")
+    client.verify_day(date, rows)
 
     return "replaced" if exists else "saved"

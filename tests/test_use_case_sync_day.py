@@ -5,11 +5,14 @@ import pytest
 from training_sync.domain.garmin_activity import GarminActivity
 from training_sync.renderers.weightxreps_text import ParsedExercise, ParsedSetLine, ParsedTrainingDay
 from training_sync.use_cases.sync_day import (
+    PartialSyncFailure,
     SyncDependencies,
     apply_sync_plan,
     build_complete_training_day,
     preflight_sync_day,
+    sync_day,
 )
+from training_sync.weightxreps.client import VerificationMismatch
 from training_sync.weightxreps.exercise_mapping import ExerciseMapping
 from training_sync.weightxreps.exercise_resolution import ExerciseResolutionRequired
 
@@ -39,12 +42,21 @@ class FakeGarmin:
 
 
 class FakeWeightxReps:
-    def __init__(self, *, existing=False, exercise_ids=None):
+    def __init__(
+        self,
+        *,
+        existing=False,
+        exercise_ids=None,
+        save_error=None,
+        verification_error=None,
+    ):
         self.existing = existing
         self.exercise_ids_map = {"Running": 30, "Cycling": 40}
         self.exercise_ids_map.update(exercise_ids or {})
         self.calls = []
         self.writes = []
+        self.save_error = save_error
+        self.verification_error = verification_error
 
     def day_has_content(self, date):
         self.calls.append(("day_has_content", date))
@@ -60,10 +72,13 @@ class FakeWeightxReps:
 
     def save_jeditor(self, rows):
         self.writes.append(("save", rows))
+        if self.save_error is not None:
+            raise self.save_error
 
     def verify_day(self, date, rows):
         self.writes.append(("verify", date, rows))
-        return True
+        if self.verification_error is not None:
+            raise self.verification_error
 
 
 def fake_dependencies(
@@ -76,6 +91,8 @@ def fake_dependencies(
     exercise_ids=None,
     mappings=None,
     user_id=None,
+    save_error=None,
+    verification_error=None,
 ):
     vault = tmp_path / "vault"
     daily = vault / "daily/2026/07-July/2026-07-03-Friday.md"
@@ -86,7 +103,12 @@ def fake_dependencies(
             encoding="utf-8",
         )
     garmin = FakeGarmin(activities)
-    weightxreps = FakeWeightxReps(existing=existing_remote, exercise_ids=exercise_ids)
+    weightxreps = FakeWeightxReps(
+        existing=existing_remote,
+        exercise_ids=exercise_ids,
+        save_error=save_error,
+        verification_error=verification_error,
+    )
     deps = SyncDependencies(
         garmin=garmin,
         weightxreps=weightxreps,
@@ -277,6 +299,125 @@ def test_apply_writes_updated_daily_once_before_weightxreps(monkeypatch, tmp_pat
         ("weightxreps", list(plan.weightxreps_rows)),
     ]
     assert daily.read_text(encoding="utf-8") == plan.updated_daily
+
+
+def test_apply_returns_verified_result_after_matching_remote_readback(tmp_path):
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[activity(1, "2026-07-03 07:00:00")],
+    )
+    plan = preflight_sync_day(DATE, yes=True, deps=deps)
+
+    result = apply_sync_plan(plan, deps=deps)
+
+    assert result.weightxreps_verified is True
+    assert deps.weightxreps.writes == [
+        ("save", list(plan.weightxreps_rows)),
+        ("verify", DATE, list(plan.weightxreps_rows)),
+    ]
+    assert daily.read_text(encoding="utf-8") == plan.updated_daily
+
+
+def test_apply_wraps_save_error_after_preserving_written_daily(tmp_path):
+    cause = RuntimeError("remote save unavailable")
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[activity(1, "2026-07-03 07:00:00")],
+        save_error=cause,
+    )
+    plan = preflight_sync_day(DATE, yes=True, deps=deps)
+
+    with pytest.raises(PartialSyncFailure) as exc:
+        apply_sync_plan(plan, deps=deps)
+
+    assert exc.value.date == DATE
+    assert exc.value.daily_path == daily
+    assert exc.value.cause is cause
+    assert DATE in str(exc.value)
+    assert str(daily) in str(exc.value)
+    assert "remote save unavailable" in str(exc.value)
+    assert daily.read_text(encoding="utf-8") == plan.updated_daily
+
+
+def test_apply_wraps_verification_mismatch_with_details_and_preserves_daily(tmp_path):
+    mismatch = VerificationMismatch(
+        expected=[
+            {
+                "eid": 30,
+                "sets": [
+                    {"type": 2, "t": 1_800_000, "d": 50_000_000, "dunit": "km"}
+                ],
+            }
+        ],
+        observed=[
+            {
+                "eid": 30,
+                "sets": [
+                    {"type": 2, "t": 1_800_000, "d": 50_000_000, "dunit": "mi"}
+                ],
+            }
+        ],
+    )
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[activity(1, "2026-07-03 07:00:00")],
+        verification_error=mismatch,
+    )
+    plan = preflight_sync_day(DATE, yes=True, deps=deps)
+
+    with pytest.raises(PartialSyncFailure) as exc:
+        apply_sync_plan(plan, deps=deps)
+
+    assert exc.value.cause is mismatch
+    assert "expected=" in str(exc.value)
+    assert "observed=" in str(exc.value)
+    assert daily.read_text(encoding="utf-8") == plan.updated_daily
+
+
+def test_apply_retry_saves_identical_rows_after_partial_failure(tmp_path):
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[
+            activity(20, "2026-07-03 18:00:00", "cycling"),
+            activity(10, "2026-07-03 07:00:00", "running"),
+        ],
+        daily_content="""```text
+2026-07-03
+
+#Barbell Row
+51kg x 12, 12, 12
+```""",
+        exercise_ids={"Barbell Row": 20, "Running": 30, "Cycling": 40},
+        save_error=RuntimeError("first save failed"),
+    )
+
+    plan = preflight_sync_day(DATE, yes=True, deps=deps)
+
+    with pytest.raises(PartialSyncFailure):
+        apply_sync_plan(plan, deps=deps)
+    first_rows = deps.weightxreps.writes[0][1]
+    deps.weightxreps.save_error = None
+
+    result = apply_sync_plan(plan, deps=deps)
+    second_rows = deps.weightxreps.writes[1][1]
+
+    assert first_rows == second_rows
+    assert result.weightxreps_verified is True
+    assert daily.read_text(encoding="utf-8").count("## 🏃 Training") == 1
+
+
+def test_sync_day_directly_runs_preflight_apply_and_verification(tmp_path):
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[activity(1, "2026-07-03 07:00:00")],
+    )
+
+    result = sync_day(DATE, yes=True, deps=deps)
+
+    assert result.daily_path == daily
+    assert result.activity_count == 1
+    assert result.weightxreps_verified is True
+    assert [write[0] for write in deps.weightxreps.writes] == ["save", "verify"]
 
 
 def test_preflight_rejects_existing_remote_content_without_yes_and_does_not_write(tmp_path):

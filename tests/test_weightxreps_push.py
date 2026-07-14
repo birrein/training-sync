@@ -3,18 +3,27 @@ from pathlib import Path
 import pytest
 
 from training_sync.use_cases.weightxreps_push import push_weightxreps_day
+from training_sync.weightxreps.client import VerificationMismatch
 from training_sync.weightxreps.exercise_mapping import ExerciseMapping
 from training_sync.weightxreps.exercise_resolution import ExerciseResolutionRequired
 
 
 class FakeWeightxRepsClient:
-    def __init__(self, existing=False, exercise_ids=None, exercise_catalog=None):
+    def __init__(
+        self,
+        existing=False,
+        exercise_ids=None,
+        exercise_catalog=None,
+        verification_error=None,
+    ):
         self.existing = existing
         self.exercise_ids_map = exercise_ids or {}
         self.exercise_catalog_map = exercise_catalog or {}
         self.exercise_id_calls = []
         self.exercise_catalog_calls = []
         self.saved_rows = None
+        self.verify_calls = []
+        self.verification_error = verification_error
 
     def day_has_content(self, date):
         return self.existing
@@ -32,7 +41,9 @@ class FakeWeightxRepsClient:
         return {"saveJEditor": True}
 
     def verify_day(self, date, rows):
-        return True
+        self.verify_calls.append((date, rows))
+        if self.verification_error is not None:
+            raise self.verification_error
 
 
 def _write_daily(vault: Path):
@@ -72,6 +83,39 @@ def test_push_weightxreps_day_writes_rows_when_remote_day_is_empty(tmp_path):
 
     assert result == "saved"
     assert client.saved_rows[0] == {"bw": 71.4, "lb": 0}
+
+
+def test_push_weightxreps_day_treats_normal_verification_return_as_success(tmp_path):
+    vault = tmp_path / "vault"
+    _write_daily(vault)
+    client = FakeWeightxRepsClient(existing=False)
+
+    assert push_weightxreps_day(
+        vault,
+        "2026-06-19",
+        client,
+        exercise_ids={"Chin Up": 10},
+        yes=False,
+    ) == "saved"
+    assert client.verify_calls == [("2026-06-19", client.saved_rows)]
+
+
+def test_push_weightxreps_day_propagates_verification_mismatch(tmp_path):
+    vault = tmp_path / "vault"
+    _write_daily(vault)
+    mismatch = VerificationMismatch(expected=[], observed=[])
+    client = FakeWeightxRepsClient(existing=False, verification_error=mismatch)
+
+    with pytest.raises(VerificationMismatch) as exc:
+        push_weightxreps_day(
+            vault,
+            "2026-06-19",
+            client,
+            exercise_ids={"Chin Up": 10},
+            yes=False,
+        )
+
+    assert exc.value is mismatch
 
 
 def test_push_weightxreps_day_uses_remote_exercise_ids_when_not_provided(tmp_path):

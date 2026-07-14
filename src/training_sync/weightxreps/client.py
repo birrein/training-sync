@@ -40,6 +40,10 @@ query JEditorDay($ymd: YMD!, $range: Int) {
           lb
           usebw
           type
+          t
+          d
+          dunit
+          c
         }
       }
     }
@@ -55,6 +59,20 @@ query ExerciseCatalog($uid: Int!) {
   }
 }
 """
+
+
+class VerificationMismatch(RuntimeError):
+    def __init__(
+        self,
+        *,
+        expected: list[dict[str, Any]],
+        observed: list[dict[str, Any]],
+    ) -> None:
+        self.expected = expected
+        self.observed = observed
+        super().__init__(
+            f"Weight x Reps verification mismatch: expected={expected!r}, observed={observed!r}"
+        )
 
 
 class WeightxRepsClient:
@@ -126,32 +144,12 @@ class WeightxRepsClient:
             if exercise.get("name") and exercise.get("id")
         }
 
-    def verify_day(self, date: str, rows: list[dict[str, Any]]) -> bool:
+    def verify_day(self, date: str, rows: list[dict[str, Any]]) -> None:
         day = self.jeditor_day(date)
-        if not day:
-            return False
-
-        expected_blocks = sum(
-            1
-            for row in rows
-            if row.get("eid") is not None
-        )
-        saved_blocks = [
-            token
-            for token in day.get("did") or []
-            if token.get("__typename") == "JEditorEBlock"
-        ]
-        if len(saved_blocks) < expected_blocks:
-            return False
-
-        for block in saved_blocks[:expected_blocks]:
-            sets = block.get("sets") or []
-            if not sets:
-                return False
-            if any(set_row.get("type") != 0 for set_row in sets):
-                return False
-
-        return True
+        expected = _normalize_expected_blocks(rows)
+        observed = _normalize_observed_blocks(day)
+        if expected != observed:
+            raise VerificationMismatch(expected=expected, observed=observed)
 
 
 def _default_date_from_rows(rows: list[dict[str, Any]]) -> str:
@@ -159,3 +157,52 @@ def _default_date_from_rows(rows: list[dict[str, Any]]) -> str:
         if row.get("on"):
             return row["on"]
     raise ValueError("JEditor rows must include an on date")
+
+
+def _normalize_expected_blocks(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "eid": row["eid"],
+            "sets": [_normalize_expected_set(set_row) for set_row in row.get("erows") or []],
+        }
+        for row in rows
+        if row.get("eid") is not None
+    ]
+
+
+def _normalize_expected_set(set_row: dict[str, Any]) -> dict[str, Any]:
+    distance = set_row.get("d")
+    if isinstance(distance, dict):
+        distance_value = distance.get("val")
+        distance_unit = distance.get("unit")
+    else:
+        distance_value = distance
+        distance_unit = set_row.get("dunit")
+    return {
+        "type": set_row.get("type"),
+        "t": set_row.get("t"),
+        "d": distance_value,
+        "dunit": distance_unit,
+    }
+
+
+def _normalize_observed_blocks(day: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not day:
+        return []
+    return [
+        {
+            "eid": token.get("e"),
+            "sets": [_normalize_observed_set(set_row) for set_row in token.get("sets") or []],
+        }
+        for token in day.get("did") or []
+        if token.get("__typename") == "JEditorEBlock"
+    ]
+
+
+def _normalize_observed_set(set_row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "type": set_row.get("type"),
+        "t": set_row.get("t"),
+        "d": set_row.get("d"),
+        "dunit": set_row.get("dunit"),
+    }

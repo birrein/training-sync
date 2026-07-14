@@ -52,6 +52,17 @@ class SyncResult:
     weightxreps_verified: bool
 
 
+class PartialSyncFailure(RuntimeError):
+    def __init__(self, date: str, daily_path: Path, cause: Exception) -> None:
+        self.date = date
+        self.daily_path = daily_path
+        self.cause = cause
+        super().__init__(
+            f"Partial sync failure for {date}: daily written to {daily_path}; "
+            f"Weight x Reps failed: {cause}"
+        )
+
+
 def build_complete_training_day(
     date: str,
     preserved: ParsedTrainingDay,
@@ -188,10 +199,11 @@ def write_daily(plan: SyncPlan) -> None:
 def apply_sync_plan(plan: SyncPlan, *, deps: SyncDependencies) -> SyncResult:
     write_daily(plan)
     rows = list(plan.weightxreps_rows)
-    deps.weightxreps.save_jeditor(rows)
-    verified = deps.weightxreps.verify_day(plan.date, rows)
-    if verified is False:
-        raise RuntimeError(f"Weight x Reps verification failed for {plan.date}")
+    try:
+        deps.weightxreps.save_jeditor(rows)
+        deps.weightxreps.verify_day(plan.date, rows)
+    except Exception as cause:
+        raise PartialSyncFailure(plan.date, plan.daily_path, cause) from cause
     return SyncResult(
         date=plan.date,
         daily_path=plan.daily_path,

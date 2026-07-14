@@ -1,4 +1,6 @@
-from training_sync.weightxreps.client import WeightxRepsClient
+import pytest
+
+from training_sync.weightxreps.client import VerificationMismatch, WeightxRepsClient
 
 
 class FakeResponse:
@@ -168,7 +170,76 @@ def test_exercise_catalog_reads_remote_exercise_names():
     assert session.calls[0][1]["variables"] == {"uid": 12345}
 
 
-def test_verify_day_requires_saved_exercise_blocks_with_weight_x_reps_type():
+def _expected_rows():
+    return [
+        {"on": "2026-06-20"},
+        {
+            "eid": 157728,
+            "erows": [{"w": {"v": 47, "lb": 0}, "r": 8, "s": 1, "type": 0}],
+        },
+        {"eid": 157737, "erows": [{"type": 1, "t": 1_800_000}]},
+        {
+            "eid": 157740,
+            "erows": [
+                {
+                    "type": 2,
+                    "t": 2_700_000,
+                    "d": {"val": 279_500_000, "unit": "km"},
+                    "c": "ignored during verification",
+                }
+            ],
+        },
+    ]
+
+
+def _observed_blocks():
+    return [
+        {
+            "__typename": "JEditorEBlock",
+            "e": 157728,
+            "sets": [
+                {
+                    "v": 47,
+                    "r": 8,
+                    "s": 1,
+                    "type": 0,
+                    "t": None,
+                    "d": None,
+                    "dunit": None,
+                }
+            ],
+        },
+        {
+            "__typename": "JEditorEBlock",
+            "e": 157737,
+            "sets": [{"type": 1, "t": 1_800_000, "d": None, "dunit": None}],
+        },
+        {
+            "__typename": "JEditorEBlock",
+            "e": 157740,
+            "sets": [{"type": 2, "t": 2_700_000, "d": 279_500_000, "dunit": "km"}],
+        },
+    ]
+
+
+def _verification_client(blocks):
+    return WeightxRepsClient(
+        access_token="token-123",
+        session=FakeSession(
+            {
+                "data": {
+                    "jeditor": {
+                        "baseBW": None,
+                        "did": blocks,
+                        "exercises": [],
+                    }
+                }
+            }
+        ),
+    )
+
+
+def test_jeditor_query_requests_structured_set_fields():
     session = FakeSession(
         {
             "data": {
@@ -176,11 +247,7 @@ def test_verify_day_requires_saved_exercise_blocks_with_weight_x_reps_type():
                     "baseBW": None,
                     "did": [
                         {"__typename": "JEditorDayTag", "on": "2026-06-20"},
-                        {
-                            "__typename": "JEditorEBlock",
-                            "e": 157728,
-                            "sets": [{"v": 47, "r": 8, "s": 1, "type": 0}],
-                        },
+                        *_observed_blocks(),
                     ],
                     "exercises": [],
                 }
@@ -189,27 +256,96 @@ def test_verify_day_requires_saved_exercise_blocks_with_weight_x_reps_type():
     )
     client = WeightxRepsClient(access_token="token-123", session=session)
 
-    assert client.verify_day("2026-06-20", [{"eid": 157728, "erows": []}]) is True
+    client.verify_day("2026-06-20", _expected_rows())
+
+    query = session.calls[0][1]["query"]
+    for field in ("type", "t", "d", "dunit", "c"):
+        assert field in query
 
 
-def test_verify_day_rejects_saved_sets_without_type():
-    session = FakeSession(
-        {
-            "data": {
-                "jeditor": {
-                    "baseBW": None,
-                    "did": [
-                        {
-                            "__typename": "JEditorEBlock",
-                            "e": 157728,
-                            "sets": [{"v": 47, "r": 8, "s": 1, "type": None}],
-                        },
-                    ],
-                    "exercises": [],
-                }
-            }
-        }
+def test_verify_day_accepts_exact_strength_duration_and_distance_blocks():
+    client = _verification_client(_observed_blocks())
+
+    assert client.verify_day("2026-06-20", _expected_rows()) is None
+
+
+@pytest.mark.parametrize(
+    ("mutate", "expected_value", "observed_value"),
+    [
+        (lambda blocks: blocks.pop(1), 157737, 157740),
+        (lambda blocks: blocks[2]["sets"][0].pop("dunit"), "km", None),
+        (lambda blocks: blocks[2]["sets"][0].update(type=1), 2, 1),
+        (lambda blocks: blocks[1]["sets"][0].update(t=1_700_000), 1_800_000, 1_700_000),
+        (lambda blocks: blocks[2]["sets"][0].update(d=123), 279_500_000, 123),
+        (lambda blocks: blocks[2]["sets"][0].update(dunit="mi"), "km", "mi"),
+    ],
+    ids=[
+        "missing-exercise",
+        "missing-field",
+        "wrong-type",
+        "wrong-time",
+        "wrong-distance",
+        "wrong-unit",
+    ],
+)
+def test_verify_day_raises_structured_mismatch_for_relevant_differences(
+    mutate,
+    expected_value,
+    observed_value,
+):
+    blocks = _observed_blocks()
+    mutate(blocks)
+    client = _verification_client(blocks)
+
+    with pytest.raises(VerificationMismatch) as exc:
+        client.verify_day("2026-06-20", _expected_rows())
+
+    assert expected_value in _nested_values(exc.value.expected)
+    assert observed_value in _nested_values(exc.value.observed)
+
+
+def test_verify_day_rejects_duplicate_exercise_blocks_and_preserves_sequence():
+    blocks = _observed_blocks()
+    blocks.insert(1, blocks[0].copy())
+    client = _verification_client(blocks)
+
+    with pytest.raises(VerificationMismatch) as exc:
+        client.verify_day("2026-06-20", _expected_rows())
+
+    assert [block["eid"] for block in exc.value.expected] == [157728, 157737, 157740]
+    assert [block["eid"] for block in exc.value.observed] == [157728, 157728, 157737, 157740]
+
+
+def test_verify_day_error_payload_contains_normalized_expected_and_observed_distance():
+    blocks = _observed_blocks()
+    blocks[2]["sets"][0]["dunit"] = "mi"
+    client = _verification_client(blocks)
+
+    with pytest.raises(VerificationMismatch) as exc:
+        client.verify_day("2026-06-20", _expected_rows())
+
+    assert exc.value.expected[2]["sets"][0]["d"] == 279_500_000
+    assert exc.value.expected[2]["sets"][0]["dunit"] == "km"
+    assert exc.value.observed[2]["sets"][0]["dunit"] == "mi"
+    assert "expected=" in str(exc.value)
+    assert "observed=" in str(exc.value)
+
+
+def test_verify_day_treats_missing_day_as_empty_observed_payload():
+    client = WeightxRepsClient(
+        access_token="token-123",
+        session=FakeSession({"data": {"jeditor": None}}),
     )
-    client = WeightxRepsClient(access_token="token-123", session=session)
 
-    assert client.verify_day("2026-06-20", [{"eid": 157728, "erows": []}]) is False
+    with pytest.raises(VerificationMismatch) as exc:
+        client.verify_day("2026-06-20", _expected_rows())
+
+    assert exc.value.observed == []
+
+
+def _nested_values(value):
+    if isinstance(value, dict):
+        return [item for child in value.values() for item in _nested_values(child)]
+    if isinstance(value, list):
+        return [item for child in value for item in _nested_values(child)]
+    return [value]
