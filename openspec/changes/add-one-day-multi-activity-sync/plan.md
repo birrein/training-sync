@@ -1,6 +1,6 @@
 # One-Day Multi-Activity Sync Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement `training-sync sync DATE [--yes]` so every Garmin activity for the date is rendered into the existing daily and reconciled as a verified, structured full-day Weight x Reps replacement.
 
