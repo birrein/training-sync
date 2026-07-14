@@ -18,5 +18,5 @@
 - [x] 4.3 Add orchestration tests proving the daily is retained after a remote failure and retries are idempotent.
 
 ## 5. Documentation and end-to-end verification
-- [ ] 5.1 Update README usage and remove the obsolete marker-only limitation.
-- [ ] 5.2 Run focused tests, the full suite, and a read-only known-day preview.
+- [x] 5.1 Update README usage and remove the obsolete marker-only limitation.
+- [x] 5.2 Run focused tests, the full suite, and a read-only known-day preview.
