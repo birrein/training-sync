@@ -3,7 +3,13 @@ from pathlib import Path
 import pytest
 
 from training_sync.domain.garmin_activity import GarminActivity
-from training_sync.use_cases.sync_day import SyncDependencies, apply_sync_plan, preflight_sync_day
+from training_sync.renderers.weightxreps_text import ParsedExercise, ParsedSetLine, ParsedTrainingDay
+from training_sync.use_cases.sync_day import (
+    SyncDependencies,
+    apply_sync_plan,
+    build_complete_training_day,
+    preflight_sync_day,
+)
 from training_sync.weightxreps.exercise_mapping import ExerciseMapping
 from training_sync.weightxreps.exercise_resolution import ExerciseResolutionRequired
 
@@ -35,7 +41,8 @@ class FakeGarmin:
 class FakeWeightxReps:
     def __init__(self, *, existing=False, exercise_ids=None):
         self.existing = existing
-        self.exercise_ids_map = exercise_ids or {}
+        self.exercise_ids_map = {"Running": 30, "Cycling": 40}
+        self.exercise_ids_map.update(exercise_ids or {})
         self.calls = []
         self.writes = []
 
@@ -265,7 +272,10 @@ def test_apply_writes_updated_daily_once_before_weightxreps(monkeypatch, tmp_pat
 
     apply_sync_plan(plan, deps=deps)
 
-    assert events == [("daily", daily, "utf-8"), ("weightxreps", [])]
+    assert events == [
+        ("daily", daily, "utf-8"),
+        ("weightxreps", list(plan.weightxreps_rows)),
+    ]
     assert daily.read_text(encoding="utf-8") == plan.updated_daily
 
 
@@ -308,3 +318,122 @@ def test_preflight_rejects_unresolved_exercises_without_writing(tmp_path):
         preflight_sync_day(DATE, yes=True, deps=deps)
 
     assert_no_writes(deps, daily, original)
+
+
+def test_preflight_preserves_strength_and_builds_one_structured_block_per_cardio_activity(tmp_path):
+    running = activity(10, "2026-07-03 07:00:00", "running")
+    running.update({"activityName": "Morning Run", "averageHR": 148})
+    cycling = activity(20, "2026-07-03 18:00:00", "cycling")
+    cycling.update({"activityName": "Zwift Ride", "elevationGain": 158})
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[cycling, running],
+        daily_content="""```text
+2026-07-03
+@ 71.4 bw
+
+#Chin Up
+BW x 5, 5, 5
+
+#Barbell Row
+51kg x 12, 12, 12
+```""",
+        exercise_ids={"Chin Up": 10, "Barbell Row": 20, "Running": 30, "Cycling": 40},
+    )
+    original = daily.read_text(encoding="utf-8")
+
+    plan = preflight_sync_day(DATE, yes=True, deps=deps)
+
+    assert plan.weightxreps_rows == (
+        {"bw": 71.4, "lb": 0},
+        {"on": DATE},
+        {
+            "eid": 10,
+            "erows": [{"w": {"v": 0.0, "lb": 0, "usebw": 1}, "r": 5, "s": 3, "type": 0}],
+        },
+        {
+            "eid": 20,
+            "erows": [{"w": {"v": 51.0, "lb": 0}, "r": 12, "s": 3, "type": 0}],
+        },
+        {
+            "eid": 30,
+            "erows": [
+                {
+                    "type": 2,
+                    "t": 1_800_000,
+                    "d": {"val": 50_000_000, "unit": "km"},
+                    "c": "Morning Run | Avg HR: 148",
+                }
+            ],
+        },
+        {
+            "eid": 40,
+            "erows": [
+                {
+                    "type": 2,
+                    "t": 1_800_000,
+                    "d": {"val": 50_000_000, "unit": "km"},
+                    "c": "Zwift Ride | Elev Gain: 158 m",
+                }
+            ],
+        },
+    )
+    assert daily.read_text(encoding="utf-8") == original
+
+
+def test_preflight_builds_equal_weightxreps_rows_on_deterministic_retry(tmp_path):
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[
+            activity(20, "2026-07-03 18:00:00", "cycling"),
+            activity(10, "2026-07-03 07:00:00", "running"),
+        ],
+        daily_content="""```text
+2026-07-03
+
+#Barbell Row
+51kg x 12, 12, 12
+```""",
+        exercise_ids={"Barbell Row": 20, "Running": 30, "Cycling": 40},
+    )
+    original = daily.read_text(encoding="utf-8")
+
+    first = preflight_sync_day(DATE, yes=True, deps=deps)
+    second = preflight_sync_day(DATE, yes=True, deps=deps)
+
+    assert first.weightxreps_rows == second.weightxreps_rows
+    assert daily.read_text(encoding="utf-8") == original
+
+
+def test_build_complete_training_day_preserves_only_strength_from_prior_day():
+    strength = ParsedExercise(
+        name="Barbell Row",
+        sets=[ParsedSetLine(weight_kg=51.0, reps=(12, 12, 12))],
+    )
+    prior_cardio = ParsedExercise(
+        name="Running",
+        sets=[ParsedSetLine(set_type=2, duration_ms=900_000, distance=2.5, distance_unit="km")],
+    )
+    preserved = ParsedTrainingDay(
+        date=DATE,
+        body_weight_kg=71.4,
+        exercises=[strength, prior_cardio],
+    )
+    garmin_activity = GarminActivity.from_garmin(activity(10, "2026-07-03 07:00:00"))
+
+    complete = build_complete_training_day(DATE, preserved, [garmin_activity])
+
+    assert complete.exercises[0] == strength
+    assert len(complete.exercises) == 2
+    assert complete.exercises[1].name == "Running"
+    assert complete.exercises[1].sets[0].duration_ms == 1_800_000
+
+
+def test_build_complete_training_day_maps_virtual_ride_to_cycling():
+    raw = activity(20, "2026-07-03 18:00:00", "virtual_ride")
+    virtual_ride = GarminActivity.from_garmin(raw)
+    preserved = ParsedTrainingDay(date=DATE, body_weight_kg=None)
+
+    complete = build_complete_training_day(DATE, preserved, [virtual_ride])
+
+    assert complete.exercises[0].name == "Cycling"

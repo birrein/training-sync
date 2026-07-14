@@ -1,9 +1,14 @@
 """Build Weight x Reps JEditorSaveRow payloads."""
 
 from collections import Counter
+from decimal import Decimal
 from typing import Any
 
-from training_sync.renderers.weightxreps_text import ParsedSetLine, ParsedTrainingDay
+from training_sync.renderers.weightxreps_text import (
+    DISTANCE_UNIT_KILOMETERS,
+    ParsedSetLine,
+    ParsedTrainingDay,
+)
 
 WEIGHT_X_REPS_SET_TYPE = 0
 
@@ -40,6 +45,9 @@ def build_jeditor_rows(
 
 
 def _set_line_to_erow(set_line: ParsedSetLine) -> dict[str, Any]:
+    if set_line.set_type in (1, 2):
+        return _cardio_erow(set_line)
+
     reps_counts = Counter(set_line.reps)
     if len(reps_counts) != 1:
         return {
@@ -57,6 +65,28 @@ def _set_line_to_erow(set_line: ParsedSetLine) -> dict[str, Any]:
         "s": sets,
         "type": WEIGHT_X_REPS_SET_TYPE,
     }
+
+
+def _cardio_erow(set_line: ParsedSetLine) -> dict[str, Any]:
+    if set_line.duration_ms is None:
+        raise ValueError("Cardio set requires duration_ms")
+
+    row: dict[str, Any] = {
+        "type": set_line.set_type,
+        "t": set_line.duration_ms,
+    }
+    if set_line.set_type == 2:
+        if set_line.distance is None or set_line.distance_unit is None:
+            raise ValueError("Distance cardio set requires distance and distance_unit")
+        if set_line.distance_unit != DISTANCE_UNIT_KILOMETERS:
+            raise ValueError(f"Unsupported distance unit: {set_line.distance_unit}")
+        row["d"] = {
+            "val": int(Decimal(str(set_line.distance)) * 100_000 * 100),
+            "unit": set_line.distance_unit,
+        }
+    if set_line.comment:
+        row["c"] = set_line.comment
+    return row
 
 
 def _weight_payload(set_line: ParsedSetLine) -> dict[str, Any]:

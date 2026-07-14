@@ -1,12 +1,19 @@
 """Preflight-first orchestration for one-day synchronization."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from training_sync.domain.garmin_activity import GarminActivity
 from training_sync.renderers.garmin_daily import render_training_activities
-from training_sync.use_cases.weightxreps_preview import preview_weightxreps_day_from_vault
+from training_sync.renderers.weightxreps_text import (
+    DISTANCE_UNIT_KILOMETERS,
+    ParsedExercise,
+    ParsedSetLine,
+    ParsedTrainingDay,
+)
+from training_sync.use_cases.weightxreps_preview import load_weightxreps_day_from_vault
 from training_sync.vault.daily import daily_note_path
 from training_sync.vault.training_block import (
     extract_training_section,
@@ -14,6 +21,8 @@ from training_sync.vault.training_block import (
     training_section_has_content,
 )
 from training_sync.weightxreps.exercise_mapping import ExerciseMapping
+from training_sync.weightxreps.exercise_resolution import resolve_exercise_ids
+from training_sync.weightxreps.jeditor import build_jeditor_rows
 
 
 @dataclass(frozen=True)
@@ -41,6 +50,65 @@ class SyncResult:
     daily_path: Path
     activity_count: int
     weightxreps_verified: bool
+
+
+def build_complete_training_day(
+    date: str,
+    preserved: ParsedTrainingDay,
+    activities: Sequence[GarminActivity],
+) -> ParsedTrainingDay:
+    exercises = [
+        exercise
+        for exercise in preserved.exercises
+        if all(set_line.set_type == 0 for set_line in exercise.sets)
+    ]
+    for activity in activities:
+        has_distance = activity.distance_m is not None
+        exercises.append(
+            ParsedExercise(
+                name=_activity_exercise_name(activity.type_key),
+                sets=[
+                    ParsedSetLine(
+                        set_type=2 if has_distance else 1,
+                        duration_ms=activity.duration_ms,
+                        distance=activity.distance_m / 1000 if has_distance else None,
+                        distance_unit=DISTANCE_UNIT_KILOMETERS if has_distance else None,
+                        comment=_activity_comment(activity),
+                    )
+                ],
+            )
+        )
+    return ParsedTrainingDay(
+        date=date,
+        body_weight_kg=preserved.body_weight_kg,
+        exercises=exercises,
+    )
+
+
+def _activity_exercise_name(type_key: str) -> str:
+    if "run" in type_key:
+        return "Running"
+    if "cycl" in type_key or "ride" in type_key:
+        return "Cycling"
+    return type_key.capitalize()
+
+
+def _activity_comment(activity: GarminActivity) -> str:
+    parts = [activity.name]
+    metrics = (
+        ("Avg HR", activity.average_hr, ""),
+        ("Max HR", activity.max_hr, ""),
+        ("Elev Gain", activity.elevation_gain_m, " m"),
+        ("Avg Power", activity.average_power_w, " W"),
+        ("Calories", activity.calories, ""),
+        ("Training Load", activity.training_load, ""),
+    )
+    parts.extend(
+        f"{label}: {value:g}{suffix}"
+        for label, value, suffix in metrics
+        if value is not None
+    )
+    return " | ".join(parts)
 
 
 def preflight_sync_day(date: str, *, yes: bool, deps: SyncDependencies) -> SyncPlan:
@@ -73,18 +141,20 @@ def preflight_sync_day(date: str, *, yes: bool, deps: SyncDependencies) -> SyncP
         exercise_ids = deps.weightxreps.exercise_ids(date)
         catalog_source = "partial_jeditor"
 
-    if training_section:
-        rows = tuple(
-            preview_weightxreps_day_from_vault(
-                deps.vault_root,
-                date,
-                exercise_ids=exercise_ids,
-                exercise_mappings=deps.mappings,
-                catalog_source=catalog_source,
-            )
-        )
-    else:
-        rows = ()
+    preserved = (
+        load_weightxreps_day_from_vault(deps.vault_root, date)
+        if training_section
+        else ParsedTrainingDay(date=date, body_weight_kg=None)
+    )
+    complete_day = build_complete_training_day(date, preserved, activities)
+    resolved_exercise_ids = resolve_exercise_ids(
+        date=date,
+        exercise_names=[exercise.name for exercise in complete_day.exercises],
+        local_mappings=deps.mappings,
+        remote_exercise_ids=exercise_ids,
+        catalog_source=catalog_source,
+    )
+    rows = tuple(build_jeditor_rows(complete_day, resolved_exercise_ids))
 
     if deps.weightxreps.day_has_content(date) and not yes:
         raise RuntimeError(f"Weight x Reps day {date} has content; rerun with --yes to replace it")

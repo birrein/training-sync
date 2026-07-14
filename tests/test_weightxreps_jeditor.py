@@ -1,11 +1,12 @@
 import pytest
 
 from training_sync.renderers.weightxreps_text import (
+    DISTANCE_UNIT_KILOMETERS,
     ParsedExercise,
     ParsedSetLine,
     ParsedTrainingDay,
 )
-from training_sync.weightxreps.jeditor import build_jeditor_rows
+from training_sync.weightxreps.jeditor import _set_line_to_erow, build_jeditor_rows
 
 
 def test_build_jeditor_rows_uses_known_exercise_ids_and_bodyweight():
@@ -82,3 +83,43 @@ def test_build_jeditor_rows_rejects_missing_exercise_resolution():
 
     with pytest.raises(ValueError, match="Exercise id resolution missing: New Lift"):
         build_jeditor_rows(day, exercise_ids={})
+
+
+def test_set_line_to_erow_encodes_distance_cardio_with_exact_supported_unit():
+    distance_set = ParsedSetLine(
+        set_type=2,
+        duration_ms=3_620_000,
+        distance=27.95,
+        distance_unit=DISTANCE_UNIT_KILOMETERS,
+        comment="Zwift Ride | Avg HR: 148 | Elev Gain: 158 m",
+    )
+
+    assert _set_line_to_erow(distance_set) == {
+        "type": 2,
+        "t": 3_620_000,
+        "d": {"val": 279_500_000, "unit": "km"},
+        "c": "Zwift Ride | Avg HR: 148 | Elev Gain: 158 m",
+    }
+
+
+def test_set_line_to_erow_encodes_duration_only_cardio_without_distance_fields():
+    assert _set_line_to_erow(ParsedSetLine(set_type=1, duration_ms=1_800_000)) == {
+        "type": 1,
+        "t": 1_800_000,
+    }
+    assert _set_line_to_erow(
+        ParsedSetLine(set_type=1, duration_ms=1_800_000, comment="Recovery Ride")
+    ) == {
+        "type": 1,
+        "t": 1_800_000,
+        "c": "Recovery Ride",
+    }
+
+
+def test_set_line_to_erow_preserves_strength_payload_shape():
+    assert _set_line_to_erow(
+        ParsedSetLine(weight_kg=51.0, reps=(12, 12, 12))
+    ) == {"w": {"v": 51.0, "lb": 0}, "r": 12, "s": 3, "type": 0}
+    assert _set_line_to_erow(
+        ParsedSetLine(weight_kg=0.0, reps=(5, 5, 5), uses_bodyweight=True)
+    ) == {"w": {"v": 0.0, "lb": 0, "usebw": 1}, "r": 5, "s": 3, "type": 0}
