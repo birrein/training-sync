@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from training_sync.domain.garmin_activity import GarminActivity
-from training_sync.use_cases.sync_day import SyncDependencies, preflight_sync_day
+from training_sync.use_cases.sync_day import SyncDependencies, apply_sync_plan, preflight_sync_day
 from training_sync.weightxreps.exercise_mapping import ExerciseMapping
 from training_sync.weightxreps.exercise_resolution import ExerciseResolutionRequired
 
@@ -219,6 +219,54 @@ def test_preflight_rejects_existing_daily_content_without_yes_and_does_not_write
         preflight_sync_day(DATE, yes=False, deps=deps)
 
     assert_no_writes(deps, daily, original)
+
+
+def test_preflight_replaces_existing_daily_content_in_memory_with_yes(tmp_path):
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[activity(1, "2026-07-03 07:00:00")],
+        daily_content="""```text
+2026-07-03
+
+#Known Exercise
+10kg x 5
+```""",
+        exercise_ids={"Known Exercise": 10},
+    )
+    original = daily.read_text(encoding="utf-8")
+
+    plan = preflight_sync_day(DATE, yes=True, deps=deps)
+
+    assert plan.original_daily == original
+    assert "#Known Exercise" not in plan.updated_daily
+    assert "- Activity 1" in plan.updated_daily
+    assert plan.updated_daily.count("## 🏃 Training") == 1
+    assert_no_writes(deps, daily, original)
+
+
+def test_apply_writes_updated_daily_once_before_weightxreps(monkeypatch, tmp_path):
+    deps, daily = fake_dependencies(
+        tmp_path,
+        activities=[activity(1, "2026-07-03 07:00:00")],
+    )
+    plan = preflight_sync_day(DATE, yes=True, deps=deps)
+    events = []
+    original_write_text = Path.write_text
+
+    def observed_write_text(path, data, *, encoding=None, errors=None, newline=None):
+        events.append(("daily", path, encoding))
+        return original_write_text(path, data, encoding=encoding, errors=errors, newline=newline)
+
+    def observed_save(rows):
+        events.append(("weightxreps", rows))
+
+    monkeypatch.setattr(Path, "write_text", observed_write_text)
+    monkeypatch.setattr(deps.weightxreps, "save_jeditor", observed_save)
+
+    apply_sync_plan(plan, deps=deps)
+
+    assert events == [("daily", daily, "utf-8"), ("weightxreps", [])]
+    assert daily.read_text(encoding="utf-8") == plan.updated_daily
 
 
 def test_preflight_rejects_existing_remote_content_without_yes_and_does_not_write(tmp_path):

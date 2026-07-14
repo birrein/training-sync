@@ -5,9 +5,14 @@ from pathlib import Path
 from typing import Any
 
 from training_sync.domain.garmin_activity import GarminActivity
+from training_sync.renderers.garmin_daily import render_training_activities
 from training_sync.use_cases.weightxreps_preview import preview_weightxreps_day_from_vault
 from training_sync.vault.daily import daily_note_path
-from training_sync.vault.training_block import extract_training_section
+from training_sync.vault.training_block import (
+    extract_training_section,
+    replace_training_section,
+    training_section_has_content,
+)
 from training_sync.weightxreps.exercise_mapping import ExerciseMapping
 
 
@@ -55,8 +60,11 @@ def preflight_sync_day(date: str, *, yes: bool, deps: SyncDependencies) -> SyncP
 
     original_daily = note_path.read_text(encoding="utf-8")
     training_section = extract_training_section(original_daily)
-    if training_section and not yes:
+    if training_section_has_content(original_daily) and not yes:
         raise RuntimeError(f"Daily training section for {date} has content; rerun with --yes to replace it")
+
+    rendered_activities = render_training_activities(date, activities)
+    updated_daily = replace_training_section(original_daily, rendered_activities)
 
     if deps.user_id is not None:
         exercise_ids = deps.weightxreps.exercise_catalog(deps.user_id)
@@ -86,13 +94,17 @@ def preflight_sync_day(date: str, *, yes: bool, deps: SyncDependencies) -> SyncP
         activities=activities,
         daily_path=note_path,
         original_daily=original_daily,
-        updated_daily=original_daily,
+        updated_daily=updated_daily,
         weightxreps_rows=rows,
     )
 
 
-def apply_sync_plan(plan: SyncPlan, *, deps: SyncDependencies) -> SyncResult:
+def write_daily(plan: SyncPlan) -> None:
     plan.daily_path.write_text(plan.updated_daily, encoding="utf-8")
+
+
+def apply_sync_plan(plan: SyncPlan, *, deps: SyncDependencies) -> SyncResult:
+    write_daily(plan)
     rows = list(plan.weightxreps_rows)
     deps.weightxreps.save_jeditor(rows)
     verified = deps.weightxreps.verify_day(plan.date, rows)

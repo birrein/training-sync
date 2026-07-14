@@ -8,6 +8,10 @@ def extract_training_section(note_text: str) -> str:
     return note_text[start:end].strip()
 
 
+def training_section_has_content(note_text: str) -> bool:
+    return bool(extract_training_section(note_text).strip())
+
+
 def replace_training_section(note_text: str, new_content: str) -> str:
     start, end = _section_bounds(note_text)
     prefix = note_text[:start]
