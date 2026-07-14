@@ -85,8 +85,11 @@ def test_render_strength_text_round_trips_strength_and_bodyweight_without_prior_
     assert "#Running" not in rendered
 
 
-@pytest.mark.parametrize("exercise_name", ["Running", "Cycling", "Virtual_ride"])
-def test_parse_weightxreps_text_builds_structured_distance_cardio(exercise_name):
+@pytest.mark.parametrize(
+    ("exercise_name", "expected_name"),
+    [("Running", "Running"), ("Cycling", "Cycling"), ("Virtual_ride", "Cycling")],
+)
+def test_parse_weightxreps_text_builds_structured_distance_cardio(exercise_name, expected_name):
     parsed = parse_weightxreps_text(
         f"""2026-07-03
 
@@ -100,7 +103,7 @@ def test_parse_weightxreps_text_builds_structured_distance_cardio(exercise_name)
 
     assert parsed.exercises == [
         ParsedExercise(
-            name=exercise_name,
+            name=expected_name,
             sets=[
                 ParsedSetLine(
                     set_type=2,
@@ -112,6 +115,18 @@ def test_parse_weightxreps_text_builds_structured_distance_cardio(exercise_name)
             ],
         )
     ]
+
+
+def test_parse_weightxreps_text_does_not_normalize_strength_exercise_names():
+    parsed = parse_weightxreps_text(
+        """2026-07-03
+
+#Cycling Russian Twist
+10kg x 12, 12
+"""
+    )
+
+    assert parsed.exercises[0].name == "Cycling Russian Twist"
 
 
 def test_parse_weightxreps_text_builds_duration_only_cardio_without_invented_metrics():

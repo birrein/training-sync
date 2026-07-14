@@ -105,6 +105,8 @@ def _parse_exercise_block(name: str, lines: list[str]) -> ParsedExercise:
             sets=[_parse_set_line(line) for line in lines if not line.startswith("@ ")],
         )
 
+    name = _normalize_cardio_exercise_name(name)
+
     distance = None
     distance_unit = None
     comments: list[str] = []
@@ -128,6 +130,13 @@ def _parse_exercise_block(name: str, lines: list[str]) -> ParsedExercise:
             )
         ],
     )
+
+
+def _normalize_cardio_exercise_name(name: str) -> str:
+    normalized = name.casefold().replace("-", "_").replace(" ", "_")
+    if "cycl" in normalized or "ride" in normalized:
+        return "Cycling"
+    return name
 
 
 def _parse_duration_ms(value: str) -> int:

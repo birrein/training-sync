@@ -109,6 +109,49 @@ BW x 5, 5, 5
     ]
 
 
+def test_preview_weightxreps_day_normalizes_virtual_ride_to_cycling(tmp_path):
+    vault = tmp_path / "vault"
+    daily = vault / "daily/2026/07-July/2026-07-03-Friday.md"
+    daily.parent.mkdir(parents=True)
+    daily.write_text(
+        """# Friday
+
+## 🏃 Training
+- Zwift Ride
+```text
+2026-07-03
+
+#Virtual_ride
+27.95km
+@ Duration: 01:00:20.0
+@ Avg HR: 148
+```
+""",
+        encoding="utf-8",
+    )
+
+    rows = preview_weightxreps_day_from_vault(
+        vault,
+        "2026-07-03",
+        exercise_ids={"Cycling": 40},
+    )
+
+    assert rows == [
+        {"on": "2026-07-03"},
+        {
+            "eid": 40,
+            "erows": [
+                {
+                    "type": 2,
+                    "t": 3_620_000,
+                    "d": {"val": 279_500_000, "unit": "km"},
+                    "c": "Avg HR: 148",
+                }
+            ],
+        },
+    ]
+
+
 def test_preview_weightxreps_day_requires_exercise_resolution_before_new_exercise(tmp_path):
     vault = tmp_path / "vault"
     daily = vault / "daily/2026/06-June/2026-06-19-Friday.md"
