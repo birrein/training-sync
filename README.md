@@ -86,12 +86,14 @@ full-day payload:
 training-sync sync YYYY-MM-DD [--yes]
 ```
 
-The daily note must already exist. The command performs its complete preflight
-before writing: it fetches all activities for the date, resolves Weight x Reps
-exercise IDs, and builds both the updated daily and remote payload. If either
-the daily training section or the Weight x Reps day already has content, omit
-`--yes` to stop safely; pass `--yes` as the single shared confirmation to
-replace the daily training section and the complete remote day.
+The daily note must already exist and contain the exact `## 🏃 Training`
+heading; the command never creates the daily note or that heading. It performs
+its complete preflight before writing: it fetches all activities for the date,
+resolves Weight x Reps exercise IDs, and builds both the updated daily and
+remote payload. If either the daily training section or the Weight x Reps day
+already has content, omit `--yes` to stop safely; pass `--yes` as the single
+shared confirmation to replace the daily training section and the complete
+remote day.
 
 All Garmin activities are written to the daily in chronological order. For
 Weight x Reps, the reconciled full day preserves the existing body weight and
