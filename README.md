@@ -6,6 +6,7 @@ Currently supports:
 1. **Pushing** JSON strength training logs (like Fitbod exports) directly to Garmin Connect.
 2. **Pulling (Fetching)** your Garmin activities (Running, Cycling, etc.) for a given date formatted for Markdown vaults (like Obsidian).
 3. **Previewing and pushing** Weight x Reps training days from Obsidian daily notes.
+4. **Reconciling one complete day** from Garmin into an existing Obsidian daily note and Weight x Reps.
 
 ## Installation
 
@@ -75,7 +76,41 @@ training-sync garmin weight 2026-06-19
 
 This uses the nearest available Garmin weigh-in around the requested date and prints a Weight x Reps-compatible line.
 
-### 4. Weight x Reps
+### 4. Reconciling a Day Across All Services
+
+To fetch every Garmin activity for a date, update its existing Obsidian daily
+note, and replace the corresponding Weight x Reps day with one reconciled
+full-day payload:
+
+```bash
+training-sync sync YYYY-MM-DD [--yes]
+```
+
+The daily note must already exist. The command performs its complete preflight
+before writing: it fetches all activities for the date, resolves Weight x Reps
+exercise IDs, and builds both the updated daily and remote payload. If either
+the daily training section or the Weight x Reps day already has content, omit
+`--yes` to stop safely; pass `--yes` as the single shared confirmation to
+replace the daily training section and the complete remote day.
+
+All Garmin activities are written to the daily in chronological order. For
+Weight x Reps, the reconciled full day preserves the existing body weight and
+strength exercises, removes previously generated cardio rows, and creates one
+new structured row for each supported Garmin running or cycling activity:
+
+- `type: 1` stores duration-only cardio.
+- `type: 2` stores duration plus distance, including the distance value and
+  unit. Running maps to `Running`; cycling and virtual rides map to `Cycling`.
+
+After updating the daily, the command saves the complete Weight x Reps day and
+verifies it with a read-back. If the remote save or read-back fails, the updated
+daily is intentionally retained so a retry can rebuild the same full-day
+payload; the command reports the daily path and the Weight x Reps failure as a
+partial sync. Review that error before retrying. The integrated sync does not
+create unknown Weight x Reps exercises automatically: unresolved mappings stop
+the preflight before either destination is changed.
+
+### 5. Weight x Reps
 
 Implementation notes:
 
@@ -181,10 +216,6 @@ the command prints structured JSON with candidates and exits before writing.
 Mappings with `create_if_missing = true` still require the full catalog from a
 configured user id; without one, pushes keep using the safe partial JEditor
 catalog and reject creation before writing.
-
-Current limitation: Weight x Reps pushes only support standard `WEIGHT_X_REPS`
-sets (`type: 0`). Time-based or distance-based exercise rows will need an
-explicit set-type mapping before they are synced.
 
 ## License
 MIT License
