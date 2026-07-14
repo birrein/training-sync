@@ -46,7 +46,7 @@ Build the replacement from preserved strength blocks plus every ordered cardio a
 
 ### D6: Encode cardio with structured Weight x Reps fields
 
-Cardio with distance maps to set `type: 2` with duration `t` in milliseconds plus encoded distance `d` and `dunit`. Cardio without distance maps to `type: 1` with real duration `t` in milliseconds and without invented distance fields. This replaces the marker-only alternative because Weight x Reps supports the real time/distance representation and those fields can be verified.
+Cardio with distance maps to set `type: 2` with duration `t` in milliseconds plus the Weight x Reps save payload `d: {val, unit}`. `val` is the distance converted to centimeters and multiplied by 100, while `unit` is the original supported unit string such as `"km"`. Weight x Reps read-back exposes those values as flat `d` and `dunit` fields. Cardio without distance maps to `type: 1` with real duration `t` in milliseconds and without invented distance fields. This replaces the marker-only alternative because Weight x Reps supports the real time/distance representation and those fields can be verified.
 
 ### D7: Preserve non-native Garmin metrics in comments
 

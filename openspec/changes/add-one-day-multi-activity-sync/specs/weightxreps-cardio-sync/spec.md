@@ -18,11 +18,11 @@ The system MUST reject unresolved or ambiguous Weight x Reps exercise mappings b
 
 ### Requirement: Encode cardio with distance
 
-The system SHALL encode cardio with distance as a Weight x Reps set with `type: 2`, `t` containing actual duration in milliseconds, and `d` plus `dunit` containing the supported encoded distance and unit.
+The system SHALL encode cardio with distance as a Weight x Reps set with `type: 2`, `t` containing actual duration in milliseconds, and save field `d: {val, unit}` containing the distance in centimeters multiplied by 100 and its supported unit string. Read-back SHALL compare the corresponding flat `d` and `dunit` values.
 
 #### Scenario: Distance cycling activity
 - **WHEN** Garmin provides a cycling activity lasting 3,620,000 milliseconds with a distance of 27.95 kilometers
-- **THEN** its set has `type: 2`, `t: 3620000`, and the corresponding encoded `d` and kilometer `dunit`
+- **THEN** its save set has `type: 2`, `t: 3620000`, and `d: {val: 279500000, unit: "km"}`, and read-back has `d: 279500000` and `dunit: "km"`
 
 ### Requirement: Encode duration-only cardio
 

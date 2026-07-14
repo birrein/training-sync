@@ -15,6 +15,7 @@
 - A single `--yes` authorizes replacement of non-empty daily content and existing Weight x Reps content.
 - Resolve every Weight x Reps exercise before the first write and never silently create an exercise.
 - Cardio with distance uses `type: 2`; duration-only cardio uses `type: 1`; duration `t` is milliseconds.
+- A distance save row uses `d: {val, unit}`, where `val` is centimeters multiplied by 100 and `unit` is a supported string; read-back exposes flat `d` and `dunit`.
 - Preserve strength and every cardio activity in the full-day remote replacement.
 - Report success only after exercise, `type`, `t`, `d`, and `dunit` read-back matches.
 - If Weight x Reps write or verification fails, retain the updated daily and report partial failure.
@@ -233,7 +234,7 @@ git commit -m "feat(sync): render combined daily activities"
 
 **Interfaces:**
 - Consumes: rendered daily text, ordered `GarminActivity` values, existing `ParsedExercise`, and resolved `exercise_ids: dict[str, int]`.
-- Produces: a single consistent `ParsedSetLine(weight_kg: float = 0.0, reps: tuple[int, ...] = (), uses_bodyweight: bool = False, set_type: int = 0, duration_ms: int | None = None, distance: float | None = None, distance_unit: int | None = None, comment: str | None = None)`; `_set_line_to_erow` mapping those values to `type`, `t`, `d`, `dunit`, and `c`; and `build_complete_training_day(date: str, preserved: ParsedTrainingDay, activities: Sequence[GarminActivity]) -> ParsedTrainingDay` that keeps preserved strength blocks plus every cardio activity.
+- Produces: a single consistent `ParsedSetLine(weight_kg: float = 0.0, reps: tuple[int, ...] = (), uses_bodyweight: bool = False, set_type: int = 0, duration_ms: int | None = None, distance: float | None = None, distance_unit: str | None = None, comment: str | None = None)`; `_set_line_to_erow` mapping those values to `type`, `t`, save field `d: {val, unit}`, and `c`; and `build_complete_training_day(date: str, preserved: ParsedTrainingDay, activities: Sequence[GarminActivity]) -> ParsedTrainingDay` that keeps preserved strength blocks plus every cardio activity.
 
 - [ ] **Step 1: Add failing parser/domain tests**
 
@@ -244,7 +245,7 @@ Cover `#Running`/`#Cycling`/`#Virtual_ride`, `@ Duration`, distance lines, durat
 Use exact structured expectations:
 
 ```python
-DISTANCE_UNIT_KILOMETERS = 0
+DISTANCE_UNIT_KILOMETERS = "km"
 
 distance_set = ParsedSetLine(
     set_type=2,
@@ -254,7 +255,8 @@ distance_set = ParsedSetLine(
     comment="Zwift Ride | Avg HR: 148 | Elev Gain: 158 m",
 )
 assert _set_line_to_erow(distance_set) == {
-    "type": 2, "t": 3_620_000, "d": 27.95, "dunit": 0,
+    "type": 2, "t": 3_620_000,
+    "d": {"val": 279_500_000, "unit": "km"},
     "c": "Zwift Ride | Avg HR: 148 | Elev Gain: 158 m",
 }
 ```
@@ -269,7 +271,7 @@ Expected: FAIL because the model has only strength fields and JEditor hard-codes
 
 - [ ] **Step 4: Implement structured parsing and conversion**
 
-Parse cardio metadata as a whole block instead of passing distance or metadata lines to `_parse_set_line`. Centralize duration parsing and the Weight x Reps metric-unit encoding as `DISTANCE_UNIT_KILOMETERS = 0`. In `_set_line_to_erow`, branch on `set_type`: preserve current consolidated strength behavior for `0`; emit real `t` for `1`; emit `t`, `d`, and `dunit` for `2`; attach `c` only when non-empty.
+Parse cardio metadata as a whole block instead of passing distance or metadata lines to `_parse_set_line`. Centralize duration parsing and the Weight x Reps metric-unit encoding as `DISTANCE_UNIT_KILOMETERS = "km"`; convert kilometers to centimeters and multiply by 100 using deterministic integer truncation. In `_set_line_to_erow`, branch on `set_type`: preserve current consolidated strength behavior for `0`; emit real `t` for `1`; emit `t` and `d: {val, unit}` for `2`; attach `c` only when non-empty.
 
 - [ ] **Step 5: Add and satisfy mixed full-day preservation tests**
 
@@ -309,8 +311,8 @@ Request `t`, `d`, `dunit`, and `c` in each saved set. Test matching strength/dur
 ```python
 with pytest.raises(VerificationMismatch) as exc:
     client.verify_day("2026-07-03", expected_rows)
-assert exc.value.expected[0]["erows"][0]["dunit"] == 0
-assert exc.value.observed[0]["sets"][0]["dunit"] == 1
+assert exc.value.expected[0]["sets"][0]["dunit"] == "km"
+assert exc.value.observed[0]["sets"][0]["dunit"] == "mi"
 ```
 
 - [ ] **Step 2: Run client tests and confirm RED**
@@ -321,7 +323,7 @@ Expected: FAIL because the query omits structured fields and `verify_day` return
 
 - [ ] **Step 3: Implement normalized expected-versus-observed verification and migrate the existing caller**
 
-Normalize only exercise `eid` and set `type`, `t`, `d`, and `dunit`, preserving set order within exercise blocks. Compare the complete expected block sequence; raise `VerificationMismatch` on any difference. In `src/training_sync/use_cases/weightxreps_push.py`, replace the boolean branch with a plain call so a normal `None` return means success and `VerificationMismatch` propagates unchanged:
+Normalize only exercise `eid` and set `type`, `t`, `d`, and `dunit`, preserving set order within exercise blocks. Convert expected save field `d: {val, unit}` to flat normalized `d` and `dunit` before comparing it with read-back. Compare the complete expected block sequence; raise `VerificationMismatch` on any difference. In `src/training_sync/use_cases/weightxreps_push.py`, replace the boolean branch with a plain call so a normal `None` return means success and `VerificationMismatch` propagates unchanged:
 
 ```python
 client.save_jeditor(rows)
