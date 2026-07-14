@@ -3,7 +3,8 @@
 import argparse
 from collections.abc import Callable, Sequence
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from datetime import date as calendar_date
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import os
@@ -22,6 +23,7 @@ from training_sync.config import (
     weightxreps_exercise_mapping_path,
     weightxreps_token_path,
 )
+from training_sync.use_cases.sync_day import SyncDependencies, sync_day
 from training_sync.use_cases.weightxreps_preview import preview_weightxreps_day_from_vault
 from training_sync.use_cases.weightxreps_push import push_weightxreps_day
 from training_sync.weightxreps.auth import (
@@ -104,7 +106,8 @@ def _build_parser(argv: Sequence[str]) -> argparse.ArgumentParser:
 def _add_modern_subcommands(parser: argparse.ArgumentParser) -> None:
     subparsers = parser.add_subparsers(dest="command")
     sync_parser = subparsers.add_parser("sync", help="Sync one date across Garmin, vault, and Weight x Reps")
-    sync_parser.add_argument("date")
+    sync_parser.add_argument("date", type=_iso_date)
+    sync_parser.add_argument("--yes", action="store_true", help="Replace existing daily and Weight x Reps content")
 
     garmin = subparsers.add_parser("garmin", help="Garmin Connect commands")
     garmin_subparsers = garmin.add_subparsers(dest="garmin_command")
@@ -161,6 +164,10 @@ def _add_modern_subcommands(parser: argparse.ArgumentParser) -> None:
 
 
 def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser, handlers: CommandHandlers) -> None:
+    if getattr(args, "command", None) == "sync":
+        sync_day_cli(args.date, yes=args.yes)
+        return
+
     if getattr(args, "fetch", None):
         client = handlers.get_client()
         handlers.fetch_and_print_activities(client, args.fetch)
@@ -240,6 +247,14 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser, handler
     parser.print_help()
 
 
+def _iso_date(value: str) -> str:
+    try:
+        calendar_date.fromisoformat(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"invalid ISO date: {value}") from exc
+    return value
+
+
 def _program_name() -> str:
     return os.path.basename(sys.argv[0]) or "training-sync"
 
@@ -274,6 +289,28 @@ def preview_weightxreps_day(date: str) -> None:
     except ExerciseResolutionRequired as exc:
         _exit_with_resolution_payload(exc)
     print(json.dumps(rows, ensure_ascii=False, indent=2))
+
+
+def sync_day_cli(date: str, yes: bool) -> None:
+    token_path = weightxreps_token_path()
+    tokens = load_tokens(token_path)
+    if tokens is None:
+        sys.exit("Weight x Reps token not found. Run training-sync weightxreps auth first.")
+
+    try:
+        user_id = load_weightxreps_user_id()
+    except ValueError as exc:
+        sys.exit(str(exc))
+
+    deps = SyncDependencies(
+        garmin=get_client(),
+        weightxreps=build_weightxreps_client(tokens, token_path),
+        vault_root=DEFAULT_VAULT_ROOT,
+        mappings=load_exercise_mappings(weightxreps_exercise_mapping_path()),
+        user_id=user_id,
+    )
+    result = sync_day(date, yes=yes, deps=deps)
+    print(json.dumps(asdict(result), default=str))
 
 
 def push_weightxreps_day_cli(date: str, yes: bool, user_id: int | None = None) -> None:

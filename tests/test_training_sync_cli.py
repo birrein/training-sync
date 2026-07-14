@@ -11,6 +11,33 @@ from training_sync.weightxreps.exercise_resolution import (
 )
 
 
+def test_training_sync_sync_dispatches_yes(monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli, "sync_day_cli", lambda date, yes: calls.append((date, yes)), raising=False)
+
+    cli.main(["sync", "2026-07-03", "--yes"])
+
+    assert calls == [("2026-07-03", True)]
+
+
+def test_training_sync_sync_dispatches_without_confirmation(monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli, "sync_day_cli", lambda date, yes: calls.append((date, yes)), raising=False)
+
+    cli.main(["sync", "2026-07-03"])
+
+    assert calls == [("2026-07-03", False)]
+
+
+def test_training_sync_sync_rejects_invalid_date_before_client_construction(monkeypatch):
+    monkeypatch.setattr(cli, "get_client", lambda: pytest.fail("client must not be constructed"))
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["sync", "07-03-2026"])
+
+    assert exc.value.code == 2
+
+
 def test_training_sync_garmin_fetch_dispatches_to_existing_fetch(monkeypatch):
     calls = []
 
