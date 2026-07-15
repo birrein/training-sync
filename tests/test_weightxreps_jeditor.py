@@ -95,6 +95,9 @@ def test_set_line_to_erow_encodes_distance_cardio_with_exact_supported_unit():
     )
 
     assert _set_line_to_erow(distance_set) == {
+        "w": 0,
+        "r": 1,
+        "s": 1,
         "type": 2,
         "t": 3_620_000,
         "d": {"val": 279_500_000, "unit": "km"},
@@ -104,12 +107,18 @@ def test_set_line_to_erow_encodes_distance_cardio_with_exact_supported_unit():
 
 def test_set_line_to_erow_encodes_duration_only_cardio_without_distance_fields():
     assert _set_line_to_erow(ParsedSetLine(set_type=1, duration_ms=1_800_000)) == {
+        "w": 0,
+        "r": 1,
+        "s": 1,
         "type": 1,
         "t": 1_800_000,
     }
     assert _set_line_to_erow(
         ParsedSetLine(set_type=1, duration_ms=1_800_000, comment="Recovery Ride")
     ) == {
+        "w": 0,
+        "r": 1,
+        "s": 1,
         "type": 1,
         "t": 1_800_000,
         "c": "Recovery Ride",

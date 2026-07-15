@@ -72,6 +72,9 @@ def _cardio_erow(set_line: ParsedSetLine) -> dict[str, Any]:
         raise ValueError("Cardio set requires duration_ms")
 
     row: dict[str, Any] = {
+        "w": 0,
+        "r": 1,
+        "s": 1,
         "type": set_line.set_type,
         "t": set_line.duration_ms,
     }

@@ -98,6 +98,9 @@ BW x 5, 5, 5
     assert rows[0] == {"bw": 71.4, "lb": 0}
     assert rows[-2]["erows"] == [
         {
+            "w": 0,
+            "r": 1,
+            "s": 1,
             "type": 2,
             "t": 1_500_500,
             "d": {"val": 50_000_000, "unit": "km"},
@@ -106,6 +109,9 @@ BW x 5, 5, 5
     ]
     assert rows[-1]["erows"] == [
         {
+            "w": 0,
+            "r": 1,
+            "s": 1,
             "type": 2,
             "t": 3_620_000,
             "d": {"val": 279_500_000, "unit": "km"},
@@ -147,6 +153,9 @@ def test_preview_weightxreps_day_normalizes_virtual_ride_to_cycling(tmp_path):
             "eid": 40,
             "erows": [
                 {
+                    "w": 0,
+                    "r": 1,
+                    "s": 1,
                     "type": 2,
                     "t": 3_620_000,
                     "d": {"val": 279_500_000, "unit": "km"},
@@ -223,6 +232,9 @@ def test_rendered_supported_aliases_round_trip_to_canonical_preview_rows_and_ski
     for row in rows[1:]:
         assert row["erows"][0]["type"] == 2
         assert row["erows"][0]["t"] == 1_800_000
+        assert row["erows"][0]["w"] == 0
+        assert row["erows"][0]["r"] == 1
+        assert row["erows"][0]["s"] == 1
         assert row["erows"][0]["d"] == {"val": 50_000_000, "unit": "km"}
     assert "#Strength_training" in rendered
     assert "@ Duration: 00:30:00.0" in rendered
