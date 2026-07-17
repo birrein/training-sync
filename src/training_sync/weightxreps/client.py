@@ -209,9 +209,9 @@ def _normalize_expected_set(set_row: dict[str, Any]) -> dict[str, Any]:
             "v": weight.get("v"),
             "r": set_row.get("r"),
             "s": set_row.get("s"),
-            "lb": weight.get("lb"),
-            "usebw": weight.get("usebw", 0),
-            "c": set_row.get("c"),
+            "lb": _zero_default(weight.get("lb")),
+            "usebw": _zero_default(weight.get("usebw")),
+            "c": _empty_comment_default(set_row.get("c")),
         }
     distance = set_row.get("d")
     if isinstance(distance, dict):
@@ -225,7 +225,7 @@ def _normalize_expected_set(set_row: dict[str, Any]) -> dict[str, Any]:
         "t": set_row.get("t"),
         "d": distance_value,
         "dunit": distance_unit,
-        "c": set_row.get("c"),
+        "c": _empty_comment_default(set_row.get("c")),
     }
 
 
@@ -258,17 +258,25 @@ def _normalize_observed_set(set_row: dict[str, Any]) -> dict[str, Any]:
             "v": set_row.get("v"),
             "r": set_row.get("r"),
             "s": set_row.get("s"),
-            "lb": set_row.get("lb"),
-            "usebw": set_row.get("usebw", 0),
-            "c": set_row.get("c"),
+            "lb": _zero_default(set_row.get("lb")),
+            "usebw": _zero_default(set_row.get("usebw")),
+            "c": _empty_comment_default(set_row.get("c")),
         }
     return {
         "type": set_type,
         "t": set_row.get("t"),
         "d": set_row.get("d"),
         "dunit": set_row.get("dunit"),
-        "c": set_row.get("c"),
+        "c": _empty_comment_default(set_row.get("c")),
     }
+
+
+def _zero_default(value: Any) -> Any:
+    return 0 if value is None else value
+
+
+def _empty_comment_default(value: Any) -> Any:
+    return None if value in (None, "") else value
 
 
 def _remote_day_snapshot(
@@ -341,11 +349,15 @@ def _remote_strength_set(
     exercise_id: object,
     set_row: dict[str, Any],
 ) -> ParsedSetLine:
-    if set_row.get("lb") != 0:
+    if set_row.get("lb") not in (None, False, 0):
         _unrepresentable(date, f"exercise {exercise_id!r} uses non-metric weight")
     if set_row.get("c") not in (None, ""):
         _unrepresentable(date, f"exercise {exercise_id!r} has a strength comment")
-    if any(set_row.get(field) is not None for field in ("t", "d", "dunit")):
+    if (
+        set_row.get("t") not in (None, 0)
+        or set_row.get("d") not in (None, 0)
+        or set_row.get("dunit") not in (None, "")
+    ):
         _unrepresentable(date, f"exercise {exercise_id!r} has mixed strength metadata")
     try:
         weight = float(set_row["v"])

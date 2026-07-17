@@ -290,6 +290,43 @@ def test_verify_day_accepts_exact_strength_duration_and_distance_blocks():
     assert client.verify_day("2026-06-20", _expected_rows()) is None
 
 
+def test_verify_day_accepts_strength_defaults_omitted_by_api():
+    expected_rows = [
+        {"on": "2026-06-20"},
+        {
+            "eid": 157728,
+            "erows": [
+                {
+                    "w": {"v": 47, "lb": 0},
+                    "r": 8,
+                    "s": 1,
+                    "type": 0,
+                }
+            ],
+        },
+    ]
+    observed_blocks = [
+        {
+            "__typename": "JEditorEBlock",
+            "e": 157728,
+            "sets": [
+                {
+                    "v": 47,
+                    "r": 8,
+                    "s": 1,
+                    "lb": None,
+                    "usebw": None,
+                    "type": 0,
+                    "c": "",
+                }
+            ],
+        }
+    ]
+    client = _verification_client(observed_blocks)
+
+    assert client.verify_day("2026-06-20", expected_rows) is None
+
+
 @pytest.mark.parametrize(
     ("mutate", "expected_value", "observed_value"),
     [
@@ -419,6 +456,43 @@ def test_remote_day_snapshot_preserves_representable_bodyweight_and_type_zero_st
     assert snapshot.preserved.exercises[0].sets[0].reps == (8, 8, 8)
 
 
+def test_remote_day_snapshot_accepts_strength_defaults_omitted_by_api():
+    day = {
+        "baseBW": None,
+        "exercises": [{"e": {"id": 157728, "name": "Barbell Row"}}],
+        "did": [
+            {"__typename": "JEditorDayTag", "on": "2026-06-20"},
+            {
+                "__typename": "JEditorEBlock",
+                "e": 157728,
+                "sets": [
+                    {
+                        "v": 47,
+                        "r": 8,
+                        "s": 3,
+                        "lb": None,
+                        "usebw": None,
+                        "type": 0,
+                        "t": 0,
+                        "d": 0,
+                        "dunit": None,
+                        "c": "",
+                    }
+                ],
+            },
+        ],
+    }
+    client = WeightxRepsClient(
+        access_token="token-123",
+        session=FakeSession({"data": {"jeditor": day}}),
+    )
+
+    snapshot = client.remote_day_snapshot("2026-06-20")
+
+    assert snapshot.preserved.exercises[0].sets[0].weight_kg == 47
+    assert snapshot.preserved.exercises[0].sets[0].uses_bodyweight is False
+
+
 @pytest.mark.parametrize(
     "set_row",
     [
@@ -426,6 +500,7 @@ def test_remote_day_snapshot_preserves_representable_bodyweight_and_type_zero_st
         {"v": 47, "r": 8, "s": 3, "lb": 0, "usebw": 0, "type": 0, "c": "note"},
         {"v": 47, "r": 8, "s": 0, "lb": 0, "usebw": 0, "type": 0},
         {"v": 47, "r": 8, "s": 3, "lb": 0, "usebw": 0, "type": 9},
+        {"v": 47, "r": 8, "s": 3, "lb": 0, "usebw": 0, "type": 0, "t": 1},
         {"v": 12.5, "r": 8, "s": 3, "lb": 0, "usebw": 1, "type": 0},
         {"v": 47.1234567, "r": 8, "s": 3, "lb": 0, "usebw": 0, "type": 0},
     ],
@@ -434,6 +509,7 @@ def test_remote_day_snapshot_preserves_representable_bodyweight_and_type_zero_st
         "strength-comment",
         "invalid-set-count",
         "unknown-type",
+        "mixed-strength-metadata",
         "weighted-bodyweight",
         "high-precision-weight",
     ],
