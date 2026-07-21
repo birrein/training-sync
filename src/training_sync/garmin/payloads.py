@@ -2,8 +2,8 @@
 
 from datetime import datetime, timedelta
 
-from garmin_sync.mapper import get_mapping
-from garmin_sync.workouts import StrengthWorkout
+from training_sync.domain.strength_workout import StrengthWorkout
+from training_sync.garmin.exercise_mapping import get_mapping
 
 GRAMS_PER_KG = 1000.0
 DEFAULT_ACTIVE_DURATION = 30.0

@@ -1,8 +1,13 @@
 import pytest
 
-from garmin_sync.commands.push import push_workout
-from garmin_sync.garmin_payloads import build_exercise_sets_payload
-from garmin_sync.workouts import StrengthExercise, StrengthSet, StrengthWorkout, strength_workout_from_dict
+from training_sync.domain.strength_workout import (
+    StrengthExercise,
+    StrengthSet,
+    StrengthWorkout,
+    strength_workout_from_dict,
+)
+from training_sync.garmin.import_strength import push_workout
+from training_sync.garmin.payloads import build_exercise_sets_payload
 
 
 def test_strength_workout_from_dict_normalizes_fitbod_payload():

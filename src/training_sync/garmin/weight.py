@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from garminconnect import Garmin
+
 from training_sync.domain.body_weight import WeightReading, format_weight_tag
 
 GRAMS_PER_KG = 1000.0

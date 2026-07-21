@@ -1,6 +1,7 @@
-import sys
 import getpass
 import logging
+import sys
+
 from garminconnect import Garmin
 
 from training_sync.config import garmin_token_path
@@ -9,11 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_client() -> Garmin:
-    """
-    Retrieves an authenticated Garmin client.
-    Checks the training-sync config directory for a saved session token.
-    Falls back to interactive CLI login if no valid token is found.
-    """
+    """Return an authenticated Garmin client using the Training Sync token store."""
     token_file = garmin_token_path()
 
     client = Garmin()
@@ -26,7 +23,6 @@ def get_client() -> Garmin:
             logger.info("Logged in using stored token.")
         except Exception:
             logger.warning("Stored token expired or invalid.")
-            needs_login = True
 
     if needs_login:
         if not sys.stdin.isatty():
@@ -39,7 +35,7 @@ def get_client() -> Garmin:
             client.login(tokenstore=str(token_file))
             token_file.chmod(0o600)
             logger.info("Interactive login successful.")
-        except Exception as e:
-            raise RuntimeError(f"Login failed: {e}")
+        except Exception as exc:
+            raise RuntimeError(f"Login failed: {exc}") from exc
 
     return client

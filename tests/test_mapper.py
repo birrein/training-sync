@@ -1,4 +1,4 @@
-from garmin_sync.mapper import get_mapping
+from training_sync.garmin.exercise_mapping import get_mapping
 
 
 def test_face_pull_uses_row_mapping_instead_of_suspension():
