@@ -1,5 +1,9 @@
-## ADDED Requirements
+# training-sync-project-identity Specification
 
+## Purpose
+Define the canonical Training Sync package, Python namespace, command-line interface, configuration, operational interfaces, and installation verification contracts.
+
+## Requirements
 ### Requirement: Canonical Python project identity
 The project SHALL be distributed as `training-sync`, SHALL expose production Python code only under the `training_sync` namespace, and SHALL contain no runtime dependency on a `garmin_sync` package.
 
@@ -62,39 +66,34 @@ The migrated project SHALL continue using `~/.config/training-sync/` for Garmin 
 - **WHEN** the project identity and checkout are migrated
 - **THEN** credential and token contents are not printed, copied, or rewritten as part of the migration
 
-### Requirement: Live operational references use the canonical identity
-Current operational documentation and known local automation SHALL use the `training-sync` command and `/Volumes/ssd1/dev/training-sync` checkout after the machine cutover.
+### Requirement: Operational interfaces use the canonical identity
+Current repository documentation and supported integrations SHALL use the `training-sync` command and `training_sync` package identity without depending on a checkout-specific absolute path.
 
 #### Scenario: Current repository documentation
 - **WHEN** a user follows the README installation and usage instructions
-- **THEN** every current command and source path uses the canonical Training Sync identity
+- **THEN** every current command and import path uses the canonical Training Sync identity
 
-#### Scenario: Known personal automation references
-- **WHEN** the machine cutover is completed
-- **THEN** the Codex project configuration and Garmin-to-Obsidian training skill point to `/Volumes/ssd1/dev/training-sync`
-- **AND** the skill invokes only modern `training-sync` commands
+#### Scenario: Supported integration invocation
+- **WHEN** an operational integration invokes the installed project
+- **THEN** it uses a documented modern `training-sync` command
+- **AND** it resolves the installation through its environment instead of a machine-specific checkout path
 
-#### Scenario: Historical records remain unchanged
-- **WHEN** a legacy name appears only in an archived OpenSpec change, retrospective, or historical Superpowers artifact
-- **THEN** the migration does not require rewriting that historical reference
+### Requirement: Canonical installation is verifiable
+The project SHALL be considered correctly installed only when clean and editable installations expose the canonical distribution, package, and command identities.
 
-### Requirement: Cutover is verified from an installed environment
-The migration SHALL be considered complete only after repository verification and machine-level cutover checks pass from the canonical checkout.
-
-#### Scenario: Repository verification gate
-- **WHEN** implementation is ready for machine cutover
+#### Scenario: Clean installation verification
+- **WHEN** the project is installed into a clean temporary environment
 - **THEN** the full test suite passes
-- **AND** a clean temporary installation exposes the `training-sync` distribution and command only
+- **AND** the installation exposes the `training-sync` distribution and command only
 - **AND** packaged Garmin exercise data can be loaded from the installed package
 
-#### Scenario: Final machine cutover
-- **WHEN** `/Volumes/ssd1/dev/garmin-sync` is renamed to `/Volumes/ssd1/dev/training-sync`
-- **THEN** the editable installation is recreated from the new path
-- **AND** pyenv command resolution points to the new installation
+#### Scenario: Editable installation verification
+- **WHEN** the project is installed in editable mode from a project checkout
+- **THEN** importing `training_sync` resolves to that checkout
 - **AND** `training-sync --help` succeeds
 - **AND** the obsolete `garmin-sync` command is absent
 
-#### Scenario: Read-only integration smoke test
-- **WHEN** final local verification is performed with valid existing credentials
+#### Scenario: Read-only Garmin integration smoke test
+- **WHEN** an installed environment is checked with valid existing Garmin credentials
 - **THEN** at least one non-mutating Garmin command runs through the migrated package
-- **AND** no mutating synchronization is required to prove the identity cutover
+- **AND** no mutating synchronization is required to verify the installation
