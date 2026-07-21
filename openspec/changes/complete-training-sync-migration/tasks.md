@@ -33,8 +33,8 @@
 
 ## 6. Explicit Machine Cutover Gate
 
-- [ ] 6.1 After repository verification and explicit cutover confirmation, update the known Codex project configuration and Garmin-to-Obsidian skill to use `/Volumes/ssd1/dev/training-sync` and modern `training-sync` commands.
-- [ ] 6.2 Rename `/Volumes/ssd1/dev/garmin-sync` to `/Volumes/ssd1/dev/training-sync` only after validating both exact paths and ensuring the destination does not already exist.
-- [ ] 6.3 Remove the obsolete editable `garmin-sync` distribution, install `training-sync` in editable mode from the new checkout, refresh pyenv shims, and verify command resolution points to the new path.
-- [ ] 6.4 Reopen the project from `/Volumes/ssd1/dev/training-sync` and verify `training-sync --help`, absence of `garmin-sync`, canonical configuration paths, and one read-only Garmin command.
-- [ ] 6.5 Record final cutover evidence and rollback instructions without exposing token or credential contents.
+- [x] 6.1 After repository verification and explicit cutover confirmation, update the known Codex project configuration and Garmin-to-Obsidian skill to use `/Volumes/ssd1/dev/training-sync` and modern `training-sync` commands.
+- [x] 6.2 Rename `/Volumes/ssd1/dev/garmin-sync` to `/Volumes/ssd1/dev/training-sync` only after validating both exact paths and ensuring the destination does not already exist.
+- [x] 6.3 Remove the obsolete editable `garmin-sync` distribution, install `training-sync` in editable mode from the new checkout, refresh pyenv shims, and verify command resolution points to the new path.
+- [x] 6.4 Reopen the project from `/Volumes/ssd1/dev/training-sync` and verify `training-sync --help`, absence of `garmin-sync`, canonical configuration paths, and one read-only Garmin command.
+- [x] 6.5 Record final cutover evidence and rollback instructions without exposing token or credential contents.
