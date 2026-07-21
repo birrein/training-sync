@@ -29,7 +29,7 @@
 - [x] 5.2 Run the complete test suite from the intended project environment and confirm all non-legacy behavior tests pass.
 - [x] 5.3 Install the project into a clean temporary environment and verify distribution metadata, packaged Garmin exercise data, `training-sync --help`, absence of the `garmin-sync` entry point, and failure to import `garmin_sync`.
 - [x] 5.4 Inspect `git diff --check`, status, and the complete migration diff; confirm tokens, mappings, vault notes, and remote training data were not touched.
-- [ ] 5.5 Commit the verified repository migration with Conventional Commits and push the migration branch before beginning the machine-level cutover.
+- [x] 5.5 Commit the verified repository migration with Conventional Commits and push the migration branch before beginning the machine-level cutover.
 
 ## 6. Explicit Machine Cutover Gate
 
