@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "garmin-sync"
-version = "0.1.0"
-description = "Bidirectional Garmin Connect sync for strength and running"
+name = "training-sync"
+version = "1.0.0"
+description = "Synchronize training data across Garmin Connect, Obsidian, and Weight x Reps"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -15,5 +15,4 @@ dependencies = [
 ]
 
 [project.scripts]
-garmin-sync = "garmin_sync.cli:main"
 training-sync = "training_sync.cli:main"

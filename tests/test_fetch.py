@@ -1,4 +1,4 @@
-from garmin_sync.commands.fetch import fetch_and_print_activities
+from training_sync.garmin.fetch import fetch_and_print_activities
 
 
 class FakeGarminClient:

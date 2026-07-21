@@ -1,5 +1,5 @@
 """
-Exercise mapping module for translating Fitbod exercise names to Garmin exercise categories.
+Exercise mapping for translating imported exercise names to Garmin categories.
 """
 import os
 import json

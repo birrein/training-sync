@@ -1,7 +1,7 @@
 """Module for fetching and formatting Garmin activities."""
 
 from garminconnect import Garmin
-from garmin_sync.commands.weight import find_nearest_weight, format_weight_tag
+from training_sync.garmin.weight import find_nearest_weight, format_weight_tag
 
 METERS_IN_KILOMETER = 1000.0
 SECONDS_IN_HOUR = 3600

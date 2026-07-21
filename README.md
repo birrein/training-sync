@@ -36,19 +36,13 @@ Future executions reuse this token automatically.
 
 ### 1. Pushing Strength Workouts to Garmin
 
-You can sync a JSON payload either by passing the string directly or by providing a path to a JSON file.
+Import a strength-training JSON document by providing its file path:
 
-**Using a File:**
 ```bash
 training-sync garmin import-strength example_workout.json
 ```
 
-**Using an Inline String:**
-```bash
-training-sync '{"date": "2026-06-15", "title": "Upper Body Day", "exercises": [{"name": "Barbell Bench Press", "sets": [{"reps": 10, "weight": 20}]}]}'
-```
-
-The script uses a massive dictionary (`garmin_exercises.json`) containing the exact Garmin Enum IDs to map your generic exercise names (e.g. "Barbell Bench Press") accurately to the Garmin platform. If a mapping is missing or incorrect, you can edit the `FITBOD_CUSTOM_MAP` inside `src/garmin_sync/mapper.py`.
+The package uses `src/training_sync/garmin/garmin_exercises.json` to map imported exercise names to Garmin enum IDs. If a mapping is missing or incorrect, update `FITBOD_CUSTOM_MAP` in `src/training_sync/garmin/exercise_mapping.py`.
 
 ### 2. Fetching Activities from Garmin
 

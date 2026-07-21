@@ -5,9 +5,9 @@ This module provides functionality to parse workout data and push it to Garmin C
 import json
 import logging
 from garminconnect import Garmin
-from garmin_sync.garmin_payloads import build_exercise_sets_payload
-from garmin_sync.mapper import load_garmin_dict
-from garmin_sync.workouts import strength_workout_from_dict
+from training_sync.domain.strength_workout import strength_workout_from_dict
+from training_sync.garmin.exercise_mapping import load_garmin_dict
+from training_sync.garmin.payloads import build_exercise_sets_payload
 
 logger = logging.getLogger(__name__)
 

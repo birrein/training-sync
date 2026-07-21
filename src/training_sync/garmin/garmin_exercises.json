@@ -11623,8 +11623,5 @@
     "category": "WARM_UP",
     "name": "STRETCH_TRICEPS"
   },
-  "STRETCH WALL CHEST AND SHOULDER": {
-    "category": "WARM_UP",
-    "name": "STRETCH_WALL_CHEST_AND_SHOULDER"
-  }
+  "STRETCH WALL CHEST AND SHOULDER": {"category": "WARM_UP", "name": "STRETCH_WALL_CHEST_AND_SHOULDER"}
 }

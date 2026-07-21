@@ -1,4 +1,4 @@
-from garmin_sync.commands.weight import (
+from training_sync.garmin.weight import (
     WeightReading,
     find_nearest_weight,
     format_weight_tag,

@@ -2,7 +2,6 @@ import sys
 
 import pytest
 
-from garmin_sync import cli as legacy_cli
 from training_sync import cli
 from training_sync.weightxreps.auth import TokenSet
 from training_sync.weightxreps.exercise_resolution import (
@@ -34,6 +33,26 @@ def test_training_sync_sync_rejects_invalid_date_before_client_construction(monk
 
     with pytest.raises(SystemExit) as exc:
         cli.main(["sync", "07-03-2026"])
+
+    assert exc.value.code == 2
+
+
+@pytest.mark.parametrize(
+    "legacy_argv",
+    [
+        ["--fetch", "2026-06-19"],
+        ["--weight", "2026-06-19"],
+        ['{"date": "2026-06-19", "title": "Strength", "exercises": []}'],
+    ],
+)
+def test_training_sync_rejects_legacy_arguments_before_constructing_clients(
+    monkeypatch,
+    legacy_argv,
+):
+    monkeypatch.setattr(cli, "get_client", lambda: pytest.fail("client must not be constructed"))
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(legacy_argv)
 
     assert exc.value.code == 2
 
@@ -107,28 +126,6 @@ def test_training_sync_weight_command_dispatches_to_existing_weight(monkeypatch)
     assert calls == [("weight", "client", "2026-06-19")]
 
 
-def test_training_sync_legacy_positional_json_dispatches_to_push(monkeypatch):
-    calls = []
-    json_string = '{"date": "2026-06-19", "title": "Strength", "exercises": []}'
-    workout = {"parsed": True}
-
-    monkeypatch.setattr(sys, "argv", ["training-sync", json_string])
-    monkeypatch.setattr(cli, "get_client", lambda: "client")
-    monkeypatch.setattr(cli, "parse_workout", lambda raw: calls.append(("parse", raw)) or workout)
-    monkeypatch.setattr(
-        cli,
-        "push_workout",
-        lambda client, data: calls.append(("push", client, data)),
-    )
-
-    cli.main()
-
-    assert calls == [
-        ("parse", json_string),
-        ("push", "client", workout),
-    ]
-
-
 def test_training_sync_garmin_import_strength_reads_file_and_pushes(monkeypatch, tmp_path):
     calls = []
     json_file = tmp_path / "workout.json"
@@ -170,31 +167,6 @@ def test_training_sync_garmin_import_strength_reports_data_errors(monkeypatch, t
         assert str(exc) == "Data error: missing exercises"
     else:
         raise AssertionError("Expected SystemExit")
-
-
-def test_legacy_garmin_sync_cli_still_uses_training_sync_main(monkeypatch):
-    calls = []
-    original_training_main = cli.main
-
-    def spy_training_main():
-        calls.append(("training-main",))
-        original_training_main()
-
-    monkeypatch.setattr(sys, "argv", ["garmin-sync", "--weight", "2026-06-19"])
-    monkeypatch.setattr(legacy_cli, "get_client", lambda: "client")
-    monkeypatch.setattr(
-        legacy_cli,
-        "print_weight_tag",
-        lambda client, date: calls.append(("legacy-weight", client, date)),
-    )
-    monkeypatch.setattr(cli, "main", spy_training_main)
-
-    legacy_cli.main()
-
-    assert calls == [
-        ("training-main",),
-        ("legacy-weight", "client", "2026-06-19"),
-    ]
 
 
 def test_training_sync_weightxreps_preview_dispatches(monkeypatch):

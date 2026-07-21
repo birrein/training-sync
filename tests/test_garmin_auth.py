@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from garmin_sync import auth
+from training_sync.garmin import auth
 
 
 class FakeGarmin:
