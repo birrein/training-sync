@@ -60,10 +60,12 @@ query JEditorDay($ymd: YMD!, $range: Int) {
 """
 
 EXERCISE_CATALOG_QUERY = """
-query ExerciseCatalog($uid: Int!) {
+query ExerciseCatalog($uid: ID!) {
   getExercises(uid: $uid) {
-    id
-    name
+    e {
+      id
+      name
+    }
   }
 }
 """
@@ -110,10 +112,17 @@ class WeightxRepsClient:
             self.access_token = self.token_refresher()
             response = self._post_graphql(query, variables)
 
-        response.raise_for_status()
-        payload = response.json()
-        if payload.get("errors"):
+        try:
+            payload = response.json()
+        except ValueError:
+            response.raise_for_status()
+            raise
+
+        if isinstance(payload, dict) and payload.get("errors"):
             raise RuntimeError(payload["errors"])
+        response.raise_for_status()
+        if not isinstance(payload, dict):
+            raise RuntimeError("Weight x Reps GraphQL response must be a JSON object")
         return payload.get("data", {})
 
     def _post_graphql(self, query: str, variables: dict[str, Any] | None = None):
@@ -161,11 +170,14 @@ class WeightxRepsClient:
 
     def exercise_catalog(self, user_id: int) -> dict[str, int]:
         data = self.graphql(EXERCISE_CATALOG_QUERY, {"uid": user_id})
-        return {
-            exercise["name"]: int(exercise["id"])
-            for exercise in data.get("getExercises") or []
-            if exercise.get("name") and exercise.get("id")
-        }
+        ids: dict[str, int] = {}
+        for exercise_stat in data.get("getExercises") or []:
+            exercise = exercise_stat.get("e") or {}
+            name = exercise.get("name")
+            exercise_id = exercise.get("id")
+            if name and exercise_id:
+                ids[name] = int(exercise_id)
+        return ids
 
     def verify_day(self, date: str, rows: list[dict[str, Any]]) -> None:
         day = self.jeditor_day(date)

@@ -16,6 +16,11 @@ class FakeResponse:
         return self.payload
 
 
+class InvalidJsonResponse(FakeResponse):
+    def json(self):
+        raise ValueError("invalid JSON")
+
+
 class FakeSession:
     def __init__(self, payload=None):
         self.calls = []
@@ -69,6 +74,30 @@ def test_graphql_refreshes_token_once_after_unauthorized_response():
     assert refresh_calls == ["refresh"]
     assert session.calls[0][2]["Authorization"] == "Bearer expired-token"
     assert session.calls[1][2]["Authorization"] == "Bearer fresh-token"
+
+
+def test_graphql_surfaces_errors_from_failed_http_response():
+    session = FakeSession(
+        FakeResponse(
+            {"errors": [{"message": 'Cannot query field "id" on type "ExerciseStat".'}]},
+            status_code=400,
+        )
+    )
+    client = WeightxRepsClient(access_token="token-123", session=session)
+
+    with pytest.raises(RuntimeError) as exc:
+        client.graphql("query Broken { broken }")
+
+    assert 'Cannot query field "id" on type "ExerciseStat".' in str(exc.value)
+    assert "HTTP 400" not in str(exc.value)
+
+
+def test_graphql_keeps_http_error_when_failed_response_is_not_json():
+    session = FakeSession(InvalidJsonResponse(None, status_code=502))
+    client = WeightxRepsClient(access_token="token-123", session=session)
+
+    with pytest.raises(RuntimeError, match="HTTP 502"):
+        client.graphql("query Broken { broken }")
 
 
 def test_save_jeditor_sends_rows_variable():
@@ -152,8 +181,8 @@ def test_exercise_catalog_reads_remote_exercise_names():
         {
             "data": {
                 "getExercises": [
-                    {"id": "157721", "name": "Barbell Hip Thrust"},
-                    {"id": "158078", "name": "Hanging Knee Raise"},
+                    {"e": {"id": "157721", "name": "Barbell Hip Thrust"}},
+                    {"e": {"id": "158078", "name": "Hanging Knee Raise"}},
                 ]
             }
         }
@@ -166,8 +195,11 @@ def test_exercise_catalog_reads_remote_exercise_names():
         "Barbell Hip Thrust": 157721,
         "Hanging Knee Raise": 158078,
     }
-    assert "getExercises" in session.calls[0][1]["query"]
-    assert session.calls[0][1]["variables"] == {"uid": 12345}
+    payload = session.calls[0][1]
+    assert "query ExerciseCatalog($uid: ID!)" in payload["query"]
+    assert "getExercises(uid: $uid)" in payload["query"]
+    assert "e {" in payload["query"]
+    assert payload["variables"] == {"uid": 12345}
 
 
 def _expected_rows():

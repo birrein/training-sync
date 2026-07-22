@@ -20,6 +20,33 @@ The system MUST reject unresolved or ambiguous Weight x Reps exercise mappings b
 - **WHEN** a Garmin activity cannot be resolved to exactly one existing Weight x Reps exercise
 - **THEN** preflight fails with the unresolved or ambiguous activity and neither destination is written
 
+### Requirement: Resolve exercises using the complete catalog
+
+When a Weight x Reps user identifier is configured, the system MUST retrieve the user's complete exercise catalog and use it during exercise resolution before performing any local or remote write.
+
+#### Scenario: Configured user enables complete catalog lookup
+- **WHEN** synchronization requires exercise resolution and a Weight x Reps user identifier is configured
+- **THEN** the system retrieves the complete exercise catalog
+- **AND** resolves required exercises against that catalog before writing either destination
+
+#### Scenario: Complete catalog lookup fails
+- **WHEN** the configured complete-catalog lookup cannot be completed
+- **THEN** synchronization fails during preflight
+- **AND** neither the daily note nor Weight x Reps is modified
+
+### Requirement: Surface Weight x Reps GraphQL errors
+
+The system MUST preserve actionable GraphQL error details returned by Weight x Reps, including when the response has a failed HTTP status, and MUST retain generic HTTP failure behavior when no GraphQL error payload is available.
+
+#### Scenario: Failed HTTP response contains GraphQL errors
+- **WHEN** Weight x Reps returns an HTTP 400 response with a GraphQL `errors` payload
+- **THEN** synchronization fails with the GraphQL error details
+- **AND** the generic HTTP status error does not hide those details
+
+#### Scenario: Failed HTTP response lacks GraphQL errors
+- **WHEN** Weight x Reps returns a failed HTTP response without a valid GraphQL `errors` payload
+- **THEN** synchronization fails with the underlying HTTP status error
+
 ### Requirement: Encode cardio with distance
 
 The system SHALL encode cardio with distance as a Weight x Reps set with `type: 2`, `t` containing actual duration in milliseconds, and save field `d: {val, unit}` containing the distance in centimeters multiplied by 100 and its supported unit string. Read-back SHALL compare the corresponding flat `d` and `dunit` values.
