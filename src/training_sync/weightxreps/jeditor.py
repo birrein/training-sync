@@ -59,12 +59,15 @@ def _set_line_to_erow(set_line: ParsedSetLine) -> dict[str, Any]:
         }
 
     reps, sets = next(iter(reps_counts.items()))
-    return {
+    row = {
         "w": _weight_payload(set_line),
         "r": reps,
         "s": sets,
         "type": WEIGHT_X_REPS_SET_TYPE,
     }
+    if set_line.rpe is not None:
+        row["rpe"] = set_line.rpe
+    return row
 
 
 def _cardio_erow(set_line: ParsedSetLine) -> dict[str, Any]:

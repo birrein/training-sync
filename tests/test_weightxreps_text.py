@@ -174,3 +174,16 @@ def test_parse_weightxreps_text_rejects_malformed_strength_set_lines():
 not a valid set
 """
         )
+
+
+def test_parse_and_render_strength_rpe_suffix():
+    parsed = parse_weightxreps_text(
+        """2026-07-03
+
+#Barbell Row
+51kg x 8 @9 rpe
+"""
+    )
+
+    assert parsed.exercises[0].sets[0].rpe == 9
+    assert "51kg x 8 @9 rpe" in render_strength_text(parsed)

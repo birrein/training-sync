@@ -132,3 +132,6 @@ def test_set_line_to_erow_preserves_strength_payload_shape():
     assert _set_line_to_erow(
         ParsedSetLine(weight_kg=0.0, reps=(5, 5, 5), uses_bodyweight=True)
     ) == {"w": {"v": 0.0, "lb": 0, "usebw": 1}, "r": 5, "s": 3, "type": 0}
+    assert _set_line_to_erow(
+        ParsedSetLine(weight_kg=51.0, reps=(8,), rpe=9)
+    ) == {"w": {"v": 51.0, "lb": 0}, "r": 8, "s": 1, "type": 0, "rpe": 9}

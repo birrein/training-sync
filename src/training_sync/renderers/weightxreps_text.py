@@ -22,6 +22,7 @@ class ParsedSetLine:
     distance: float | None = None
     distance_unit: str | None = None
     comment: str | None = None
+    rpe: float | None = None
 
 
 @dataclass(frozen=True)
@@ -85,7 +86,8 @@ def validate_strength_round_trip(day: ParsedTrainingDay) -> None:
 def _render_strength_set_line(set_line: ParsedSetLine) -> str:
     weight = "BW" if set_line.uses_bodyweight else f"{set_line.weight_kg:g}kg"
     reps = ", ".join(str(rep) for rep in set_line.reps)
-    return f"{weight} x {reps}"
+    suffix = f" @{set_line.rpe:g} rpe" if set_line.rpe is not None else ""
+    return f"{weight} x {reps}{suffix}"
 
 
 def parse_weightxreps_text(text: str) -> ParsedTrainingDay:
@@ -181,13 +183,19 @@ def _parse_set_line(line: str) -> ParsedSetLine:
     if len(parts) != 2:
         raise ValueError(f"Unsupported set line: {line}")
     weight_part, reps_part = parts
+    rpe = None
+    rpe_match = re.search(r"\s+@\s*(\d+(?:\.\d+)?)\s*rpe\s*$", reps_part, re.IGNORECASE)
+    if rpe_match:
+        rpe = float(rpe_match.group(1))
+        reps_part = reps_part[: rpe_match.start()].strip()
     reps = tuple(int(rep.strip()) for rep in reps_part.split(","))
     if weight_part.upper() == "BW":
-        return ParsedSetLine(weight_kg=0.0, reps=reps, uses_bodyweight=True)
+        return ParsedSetLine(weight_kg=0.0, reps=reps, uses_bodyweight=True, rpe=rpe)
     if weight_part.endswith("kg"):
         return ParsedSetLine(
             weight_kg=float(weight_part.removesuffix("kg")),
             reps=reps,
             uses_bodyweight=False,
+            rpe=rpe,
         )
     raise ValueError(f"Unsupported set line: {line}")

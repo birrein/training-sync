@@ -45,6 +45,7 @@ query JEditorDay($ymd: YMD!, $range: Int) {
           v
           r
           s
+          rpe
           lb
           usebw
           type
@@ -221,6 +222,7 @@ def _normalize_expected_set(set_row: dict[str, Any]) -> dict[str, Any]:
             "v": weight.get("v"),
             "r": set_row.get("r"),
             "s": set_row.get("s"),
+            "rpe": _zero_default(set_row.get("rpe")),
             "lb": _zero_default(weight.get("lb")),
             "usebw": _zero_default(weight.get("usebw")),
             "c": _empty_comment_default(set_row.get("c")),
@@ -270,6 +272,7 @@ def _normalize_observed_set(set_row: dict[str, Any]) -> dict[str, Any]:
             "v": set_row.get("v"),
             "r": set_row.get("r"),
             "s": set_row.get("s"),
+            "rpe": _zero_default(set_row.get("rpe")),
             "lb": _zero_default(set_row.get("lb")),
             "usebw": _zero_default(set_row.get("usebw")),
             "c": _empty_comment_default(set_row.get("c")),
@@ -386,6 +389,7 @@ def _remote_strength_set(
         weight_kg=weight,
         reps=(reps,) * set_count,
         uses_bodyweight=bool(usebw),
+        rpe=(float(set_row["rpe"]) if set_row.get("rpe") not in (None, 0) else None),
     )
 
 
