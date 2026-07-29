@@ -1,41 +1,15 @@
 """Parser for Weight x Reps-compatible text blocks."""
 
-from dataclasses import dataclass, field
 from decimal import Decimal
 import re
 
 from training_sync.domain.activity_classification import classify_activity_type
+from training_sync.domain.training import ParsedExercise, ParsedSetLine, ParsedTrainingDay
 
 
 DISTANCE_UNIT_KILOMETERS = "km"
 _DURATION_PREFIX = "@ Duration: "
 _DISTANCE_PATTERN = re.compile(r"^(?P<distance>\d+(?:\.\d+)?)\s*(?P<unit>km)$")
-
-
-@dataclass(frozen=True)
-class ParsedSetLine:
-    weight_kg: float = 0.0
-    reps: tuple[int, ...] = ()
-    uses_bodyweight: bool = False
-    set_type: int = 0
-    duration_ms: int | None = None
-    distance: float | None = None
-    distance_unit: str | None = None
-    comment: str | None = None
-    rpe: float | None = None
-
-
-@dataclass(frozen=True)
-class ParsedExercise:
-    name: str
-    sets: list[ParsedSetLine] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class ParsedTrainingDay:
-    date: str
-    body_weight_kg: float | None
-    exercises: list[ParsedExercise] = field(default_factory=list)
 
 
 def render_strength_text(day: ParsedTrainingDay) -> str | None:

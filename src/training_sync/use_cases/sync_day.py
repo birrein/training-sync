@@ -7,6 +7,7 @@ from typing import Any
 
 from training_sync.domain.activity_classification import classify_activity_type
 from training_sync.domain.garmin_activity import GarminActivity
+from training_sync.garmin.activity import decode_activity
 from training_sync.renderers.garmin_daily import render_training_activities
 from training_sync.renderers.weightxreps_text import (
     DISTANCE_UNIT_KILOMETERS,
@@ -128,7 +129,7 @@ def preflight_sync_day(date: str, *, yes: bool, deps: SyncDependencies) -> SyncP
     raw_activities = deps.garmin.get_activities_by_date(date, date)
     activities = tuple(
         sorted(
-            (GarminActivity.from_garmin(raw) for raw in raw_activities),
+            (decode_activity(raw) for raw in raw_activities),
             key=lambda activity: (activity.start_time, activity.activity_id),
         )
     )

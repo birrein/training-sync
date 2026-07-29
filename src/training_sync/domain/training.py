@@ -100,6 +100,34 @@ class StrengthWorkoutImport:
     title: str | None = None
 
 
+# These retain the existing Weight x Reps grammar shape while their ownership
+# moves out of the renderer.  The renderer re-exports them for compatibility.
+@dataclass(frozen=True)
+class ParsedSetLine:
+    weight_kg: float = 0.0
+    reps: tuple[int, ...] = ()
+    uses_bodyweight: bool = False
+    set_type: int = 0
+    duration_ms: int | None = None
+    distance: float | None = None
+    distance_unit: str | None = None
+    comment: str | None = None
+    rpe: float | None = None
+
+
+@dataclass(frozen=True)
+class ParsedExercise:
+    name: str
+    sets: list[ParsedSetLine] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ParsedTrainingDay:
+    date: str
+    body_weight_kg: float | None
+    exercises: list[ParsedExercise] = field(default_factory=list)
+
+
 @dataclass(frozen=True)
 class EffortObservation:
     metric: str
@@ -135,3 +163,29 @@ class CompletedActivity:
     strength: StrengthWorkout | None = None
     effort: tuple[EffortObservation, ...] = ()
     source_artifacts: tuple[SourceArtifact, ...] = ()
+
+
+def promote_verified_strength_import(
+    imported: StrengthWorkoutImport,
+    *,
+    activity_key: str,
+    local_start: str | datetime,
+    verified_garmin: Provenance,
+) -> CompletedActivity:
+    """Promote import evidence only after a verified Garmin read-back."""
+    if verified_garmin.provider != "garmin" or not verified_garmin.verified:
+        raise ValueError("Strength imports require verified Garmin read-back")
+    start = datetime.fromisoformat(local_start) if isinstance(local_start, str) else local_start
+    return CompletedActivity(
+        key=activity_key,
+        title=imported.title or "Strength",
+        activity_type="strength_training",
+        local_start=start,
+        elapsed_duration_s=0,
+        active_duration_s=None,
+        provenance=verified_garmin,
+        strength=imported.workout,
+        source_artifacts=(
+            SourceArtifact(kind="strength_import", reference=imported.provenance.reference),
+        ),
+    )

@@ -6,12 +6,16 @@ from .training import (
     EffortScope,
     Load,
     LoadKind,
+    ParsedExercise,
+    ParsedSetLine,
+    ParsedTrainingDay,
     Provenance,
     SourceArtifact,
     StrengthExercise,
     StrengthSet,
     StrengthWorkout,
     StrengthWorkoutImport,
+    promote_verified_strength_import,
 )
 
 __all__ = [
@@ -20,10 +24,14 @@ __all__ = [
     "EffortScope",
     "Load",
     "LoadKind",
+    "ParsedExercise",
+    "ParsedSetLine",
+    "ParsedTrainingDay",
     "Provenance",
     "SourceArtifact",
     "StrengthExercise",
     "StrengthSet",
     "StrengthWorkout",
     "StrengthWorkoutImport",
+    "promote_verified_strength_import",
 ]

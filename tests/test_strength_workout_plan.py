@@ -8,6 +8,13 @@ from training_sync.domain.strength_workout import (
 )
 from training_sync.garmin.import_strength import push_workout
 from training_sync.garmin.payloads import build_exercise_sets_payload
+from training_sync.domain.training import ParsedTrainingDay
+
+
+def test_weightxreps_parser_values_are_canonical_domain_values():
+    from training_sync.renderers.weightxreps_text import ParsedTrainingDay as RendererDay
+
+    assert RendererDay is ParsedTrainingDay
 
 
 def test_strength_workout_from_dict_normalizes_fitbod_payload():

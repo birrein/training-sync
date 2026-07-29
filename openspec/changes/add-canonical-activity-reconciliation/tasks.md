@@ -8,11 +8,11 @@
 
 ## 2. Garmin and Strength Representation Migration
 
-- [ ] 2.1 Add failing tests in `tests/test_mapper.py`, `tests/test_strength_workout_plan.py`, and a new `tests/test_strength_import_lifecycle.py` proving Garmin payload decoding is adapter-local and a screenshot-derived import is not completed until Garmin read-back verifies it.
-- [ ] 2.2 Move Garmin raw-payload decoding behind `src/training_sync/garmin/`, adapt `src/training_sync/domain/garmin_activity.py` callers to the canonical activity, and preserve current fetch and daily rendering behavior.
-- [ ] 2.3 Move `ParsedTrainingDay`, `ParsedExercise`, and `ParsedSetLine` ownership out of `src/training_sync/renderers/weightxreps_text.py` into canonical strength values while retaining parser and renderer compatibility.
-- [ ] 2.4 Adapt `src/training_sync/garmin/import_strength.py`, `src/training_sync/renderers/garmin_daily.py`, `src/training_sync/weightxreps/client.py`, and `src/training_sync/weightxreps/jeditor.py` to the canonical values.
-- [ ] 2.5 Run `python3 -m pytest -q tests/test_mapper.py tests/test_fetch.py tests/test_garmin_daily_renderer.py tests/test_parser.py tests/test_weightxreps_text.py tests/test_weightxreps_client.py tests/test_weightxreps_jeditor.py tests/test_strength_import_lifecycle.py`; expect all focused migration tests to pass.
+- [x] 2.1 Add failing tests in `tests/test_mapper.py`, `tests/test_strength_workout_plan.py`, and a new `tests/test_strength_import_lifecycle.py` proving Garmin payload decoding is adapter-local and a screenshot-derived import is not completed until Garmin read-back verifies it.
+- [x] 2.2 Move Garmin raw-payload decoding behind `src/training_sync/garmin/`, adapt `src/training_sync/domain/garmin_activity.py` callers to the canonical activity, and preserve current fetch and daily rendering behavior.
+- [x] 2.3 Move `ParsedTrainingDay`, `ParsedExercise`, and `ParsedSetLine` ownership out of `src/training_sync/renderers/weightxreps_text.py` into canonical strength values while retaining parser and renderer compatibility.
+- [x] 2.4 Adapt `src/training_sync/garmin/import_strength.py`, `src/training_sync/renderers/garmin_daily.py`, `src/training_sync/weightxreps/client.py`, and `src/training_sync/weightxreps/jeditor.py` to the canonical values.
+- [x] 2.5 Run `python3 -m pytest -q tests/test_mapper.py tests/test_fetch.py tests/test_garmin_daily_renderer.py tests/test_parser.py tests/test_weightxreps_text.py tests/test_weightxreps_client.py tests/test_weightxreps_jeditor.py tests/test_strength_import_lifecycle.py`; expect all focused migration tests to pass.
 - [ ] 2.6 Create Conventional Commit checkpoint `refactor(training): centralize completed activity representations`.
 
 ## 3. Provider-Neutral Exercise Catalog
