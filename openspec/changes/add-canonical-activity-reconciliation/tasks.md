@@ -73,11 +73,11 @@
 
 ## 9. Full Verification and Documentation
 
-- [ ] 9.1 Run `python3 -m pytest -q`; expect the full suite, including all pre-existing tests, to pass.
-- [ ] 9.2 Run `openspec validate add-canonical-activity-reconciliation --type change --strict`; expect strict change validation to pass.
-- [ ] 9.3 Run `openspec validate --specs --strict` and `openspec doctor`; expect existing specifications and repository relationships to remain valid, documenting the inactive `plan` rule warning separately if it persists.
-- [ ] 9.4 Run `python3 -m build` followed by `python3 -m twine check dist/*`; expect valid wheel and source distribution artifacts.
-- [ ] 9.5 Run installed CLI smoke tests for existing help, Garmin read-only behavior, Intervals help, and Intervals read-only inventory; no live mutation is part of required verification.
-- [ ] 9.6 Update `README.md` with canonical authority, Fitbod import, exact target selection, preview/apply behavior, direct provider edits, tombstone consequences, and redacted Intervals configuration.
-- [ ] 9.7 Perform a final secret scan and `git diff --check`; expect no credentials, generated visual companion files, whitespace errors, or unrelated changes in the implementation diff.
-- [ ] 9.8 Create Conventional Commit checkpoint `docs(sync): document scoped activity reconciliation`.
+- [x] 9.1 Run `python3 -m pytest -q`; expect the full suite, including all pre-existing tests, to pass.
+- [x] 9.2 Run `openspec validate add-canonical-activity-reconciliation --type change --strict`; expect strict change validation to pass.
+- [x] 9.3 Run `openspec validate --specs --strict` and `openspec doctor`; expect existing specifications and repository relationships to remain valid, documenting the inactive `plan` rule warning separately if it persists.
+- [x] 9.4 Run `python3 -m build` followed by `python3 -m twine check dist/*`; expect valid wheel and source distribution artifacts.
+- [x] 9.5 Run installed CLI smoke tests for existing help, Garmin read-only behavior, Intervals help, and Intervals read-only inventory; no live mutation is part of required verification.
+- [x] 9.6 Update `README.md` with canonical authority, Fitbod import, exact target selection, preview/apply behavior, direct provider edits, tombstone consequences, and redacted Intervals configuration.
+- [x] 9.7 Perform a final secret scan and `git diff --check`; expect no credentials, generated visual companion files, whitespace errors, or unrelated changes in the implementation diff.
+- [x] 9.8 Create Conventional Commit checkpoint `docs(sync): document scoped activity reconciliation`.
