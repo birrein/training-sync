@@ -17,6 +17,12 @@ class Adapter:
         return True
 
 
+class CreateAdapter(Adapter):
+    def create(self, remote_id, payload):
+        self.mutations += 1
+        return "allocated"
+
+
 def test_scope_is_exact_and_all_is_explicit():
     assert SyncScope.targets(("vault", "weightxreps")).providers == ("vault", "weightxreps")
     assert SyncScope.all().all_configured is True
@@ -70,3 +76,15 @@ def test_provider_local_edit_selects_only_its_replica():
 
     assert plan.scope.providers == ("intervals",)
     assert [operation.provider for operation in plan.operations] == ["intervals"]
+
+
+def test_intervals_only_crud_never_calls_unselected_providers():
+    intervals, garmin, vault, weightxreps, trainingpeaks = CreateAdapter(), Adapter(), Adapter(), Adapter(), Adapter()
+    plan = build_plan(
+        scope=SyncScope.targets(("intervals",)), adapters={"intervals": intervals, "garmin": garmin, "vault": vault, "weightxreps": weightxreps, "trainingpeaks": trainingpeaks},
+        operations=[("intervals", OperationKind.CREATE, None, {"external_id": "123"})],
+    )
+    result = apply_plan(plan, {"intervals": intervals}, authorized=True)
+    assert result.results[0].state is TargetResultState.VERIFIED
+    assert result.results[0].remote_id == "allocated"
+    assert [provider.mutations for provider in (garmin, vault, weightxreps, trainingpeaks)] == [0, 0, 0, 0]

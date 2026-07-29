@@ -53,14 +53,14 @@
 
 ## 7. Intervals Create, Update, Delete, and Verification
 
-- [ ] 7.1 Add failing tests in `tests/test_intervals_client.py` for multipart upload with Garmin `external_id`, partial supported-field update, Strava update rejection, exact-ID delete, source-sensitive tombstone disclosure, and secret-safe errors.
-- [ ] 7.2 Implement Intervals upload and independent read-back verification for FIT, TCX, GPX, ZIP, and GZ source artifacts.
-- [ ] 7.3 Implement partial activity update and reject Strava-sourced update plans before the HTTP mutation.
-- [ ] 7.4 Implement exact-ID deletion, preview disclosure for Garmin or other external-source tombstones, and deleted-or-absent read-back without automatic tombstone removal.
-- [ ] 7.5 Add failing use-case tests proving direct Intervals-only CRUD does not mutate Garmin, the vault, Weight x Reps, or TrainingPeaks.
-- [ ] 7.6 Implement Intervals CRUD operations through scoped reconciliation and verify each target result.
-- [ ] 7.7 Run `python3 -m pytest -q tests/test_intervals_client.py tests/test_intervals_matching.py tests/test_activity_reconciliation.py`; expect all Intervals lifecycle and isolation tests to pass.
-- [ ] 7.8 Create Conventional Commit checkpoint `feat(intervals): add verified activity CRUD`.
+- [x] 7.1 Add failing tests in `tests/test_intervals_client.py` for multipart upload with Garmin `external_id`, partial supported-field update, Strava update rejection, exact-ID delete, source-sensitive tombstone disclosure, and secret-safe errors.
+- [x] 7.2 Implement Intervals upload and independent read-back verification for FIT, TCX, GPX, ZIP, and GZ source artifacts.
+- [x] 7.3 Implement partial activity update and reject Strava-sourced update plans before the HTTP mutation.
+- [x] 7.4 Implement exact-ID deletion, preview disclosure for Garmin or other external-source tombstones, and deleted-or-absent read-back without automatic tombstone removal.
+- [x] 7.5 Add failing use-case tests proving direct Intervals-only CRUD does not mutate Garmin, the vault, Weight x Reps, or TrainingPeaks.
+- [x] 7.6 Implement Intervals CRUD operations through scoped reconciliation and verify each target result.
+- [x] 7.7 Run `python3 -m pytest -q tests/test_intervals_client.py tests/test_intervals_matching.py tests/test_activity_reconciliation.py`; expect all Intervals lifecycle and isolation tests to pass.
+- [x] 7.8 Create Conventional Commit checkpoint `feat(intervals): add verified activity CRUD`.
 
 ## 8. CLI Composition and User-Facing Preview
 

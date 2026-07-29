@@ -68,3 +68,17 @@ def test_delete_tombstone_and_not_found_verification():
     assert client.verify("1", {"deleted": True})
     with pytest.raises(ValueError, match="exact"):
         client.delete("")
+
+
+@pytest.mark.parametrize("filename", ["ride.fit", "ride.tcx", "ride.gpx", "ride.zip", "ride.gz"])
+def test_supported_artifact_types_are_uploaded(filename):
+    session = Session([Response({"id": 1})])
+    IntervalsClient("a", "secret", session).upload(None, {"external_id": "42", "artifact": (filename, io.BytesIO(b"x"))})
+    assert session.calls
+
+
+def test_unsupported_artifact_never_mutates():
+    session = Session([])
+    with pytest.raises(ValueError, match="FIT"):
+        IntervalsClient("a", "secret", session).upload(None, {"external_id": "42", "artifact": ("ride.csv", io.BytesIO())})
+    assert not session.calls

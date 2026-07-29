@@ -44,11 +44,15 @@ def apply_plan(plan: ReconciliationPlan, adapters: Mapping[str, object], *, auth
             results.append(TargetResult(operation.provider, operation.remote_id, TargetResultState.FAILED, "remote fingerprint changed; re-plan required"))
             continue
         try:
+            verified_id = operation.remote_id
             if operation.kind is not OperationKind.NOOP:
-                getattr(adapter, operation.kind.value)(operation.remote_id, operation.payload)
-            verified = operation.kind is OperationKind.NOOP or adapter.verify(operation.remote_id, operation.payload)
+                returned = getattr(adapter, operation.kind.value)(operation.remote_id, operation.payload)
+                # Create/upload providers commonly allocate their remote id.
+                if operation.kind is OperationKind.CREATE and returned is not None:
+                    verified_id = str(returned)
+            verified = operation.kind is OperationKind.NOOP or adapter.verify(verified_id, operation.payload)
             state = TargetResultState.VERIFIED if verified else TargetResultState.FAILED
-            results.append(TargetResult(operation.provider, operation.remote_id, state, None if verified else "read-back mismatch"))
+            results.append(TargetResult(operation.provider, verified_id, state, None if verified else "read-back mismatch"))
         except Exception as exc:
             results.append(TargetResult(operation.provider, operation.remote_id, TargetResultState.FAILED, str(exc)))
     return ReconciliationResult(tuple(results))
