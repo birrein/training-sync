@@ -17,9 +17,12 @@ from .training import (
     StrengthWorkoutImport,
     promote_verified_strength_import,
 )
+from .exercise_catalog import ExerciseCatalog, ExerciseIdentity, ProviderBinding
 
 __all__ = [
     "CompletedActivity",
+    "ExerciseCatalog",
+    "ExerciseIdentity",
     "EffortObservation",
     "EffortScope",
     "Load",
@@ -28,6 +31,7 @@ __all__ = [
     "ParsedSetLine",
     "ParsedTrainingDay",
     "Provenance",
+    "ProviderBinding",
     "SourceArtifact",
     "StrengthExercise",
     "StrengthSet",

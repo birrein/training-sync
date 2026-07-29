@@ -17,11 +17,11 @@
 
 ## 3. Provider-Neutral Exercise Catalog
 
-- [ ] 3.1 Add failing tests in `tests/test_exercise_catalog.py` for stable keys, preferred names, aliases, provider bindings, normalized collisions, legacy Weight x Reps mapping reads, backup-before-conversion, and saved read-back.
-- [ ] 3.2 Implement `src/training_sync/domain/exercise_catalog.py` with neutral exercise identity and provider bindings.
-- [ ] 3.3 Adapt `src/training_sync/weightxreps/exercise_mapping.py` and `src/training_sync/weightxreps/exercise_resolution.py` to read the legacy format and resolve through the neutral catalog.
-- [ ] 3.4 Implement explicit safe catalog persistence with timestamped backup, collision validation, and post-write read-back; do not rewrite legacy configuration during read-only resolution.
-- [ ] 3.5 Run `python3 -m pytest -q tests/test_exercise_catalog.py tests/test_weightxreps_exercise_mapping.py tests/test_weightxreps_exercise_resolution.py`; expect all catalog and compatibility tests to pass.
+- [x] 3.1 Add failing tests in `tests/test_exercise_catalog.py` for stable keys, preferred names, aliases, provider bindings, normalized collisions, legacy Weight x Reps mapping reads, backup-before-conversion, and saved read-back.
+- [x] 3.2 Implement `src/training_sync/domain/exercise_catalog.py` with neutral exercise identity and provider bindings.
+- [x] 3.3 Adapt `src/training_sync/weightxreps/exercise_mapping.py` and `src/training_sync/weightxreps/exercise_resolution.py` to read the legacy format and resolve through the neutral catalog.
+- [x] 3.4 Implement explicit safe catalog persistence with timestamped backup, collision validation, and post-write read-back; do not rewrite legacy configuration during read-only resolution.
+- [x] 3.5 Run `python3 -m pytest -q tests/test_exercise_catalog.py tests/test_weightxreps_exercise_mapping.py tests/test_weightxreps_exercise_resolution.py`; expect all catalog and compatibility tests to pass.
 - [ ] 3.6 Create Conventional Commit checkpoint `refactor(exercises): add provider-neutral catalog`.
 
 ## 4. Scoped Reconciliation Module
