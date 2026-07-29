@@ -1,9 +1,9 @@
 ## 1. Baseline and Canonical Training Model
 
-- [ ] 1.1 Run `python3 -m pytest -q` and record the existing passing baseline before production edits.
-- [ ] 1.2 Add failing canonical-model tests in `tests/test_canonical_training_model.py` for completed activity provenance, opaque source artifacts, mixed strength loads, ordered sets, and set/exercise/session effort scope.
-- [ ] 1.3 Implement the provider-neutral values in `src/training_sync/domain/training.py` and export them through `src/training_sync/domain/__init__.py`.
-- [ ] 1.4 Run `python3 -m pytest -q tests/test_canonical_training_model.py`; expect the new focused suite to pass.
+- [x] 1.1 Run `python3 -m pytest -q` and record the existing passing baseline before production edits.
+- [x] 1.2 Add failing canonical-model tests in `tests/test_canonical_training_model.py` for completed activity provenance, opaque source artifacts, mixed strength loads, ordered sets, and set/exercise/session effort scope.
+- [x] 1.3 Implement the provider-neutral values in `src/training_sync/domain/training.py` and export them through `src/training_sync/domain/__init__.py`.
+- [x] 1.4 Run `python3 -m pytest -q tests/test_canonical_training_model.py`; expect the new focused suite to pass.
 - [ ] 1.5 Create Conventional Commit checkpoint `refactor(domain): add canonical training model`.
 
 ## 2. Garmin and Strength Representation Migration
