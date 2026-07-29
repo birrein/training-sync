@@ -44,12 +44,12 @@
 
 ## 6. Intervals Read and Identity
 
-- [ ] 6.1 Add failing tests in `tests/test_intervals_config.py` and `tests/test_intervals_client.py` for local secret loading, credential redaction, bounded activity inventory, exact get, source-artifact download, response decoding, and actionable read errors.
-- [ ] 6.2 Add redacted Intervals configuration to `src/training_sync/config.py` and implement the concrete adapter under `src/training_sync/intervals/`.
-- [ ] 6.3 Add fixture-backed failing tests in `tests/test_intervals_matching.py` for exact remote ID, exact Garmin `external_id`, one-candidate fallback evidence, and multiple-candidate ambiguity.
-- [ ] 6.4 Implement deterministic Intervals replica matching and fingerprints without automatic deletion on fallback ambiguity.
-- [ ] 6.5 Run `python3 -m pytest -q tests/test_intervals_config.py tests/test_intervals_client.py tests/test_intervals_matching.py`; expect all read and identity tests to pass.
-- [ ] 6.6 Create Conventional Commit checkpoint `feat(intervals): add activity inventory and matching`.
+- [x] 6.1 Add failing tests in `tests/test_intervals_config.py` and `tests/test_intervals_client.py` for local secret loading, credential redaction, bounded activity inventory, exact get, source-artifact download, response decoding, and actionable read errors.
+- [x] 6.2 Add redacted Intervals configuration to `src/training_sync/config.py` and implement the concrete adapter under `src/training_sync/intervals/`.
+- [x] 6.3 Add fixture-backed failing tests in `tests/test_intervals_matching.py` for exact remote ID, exact Garmin `external_id`, one-candidate fallback evidence, and multiple-candidate ambiguity.
+- [x] 6.4 Implement deterministic Intervals replica matching and fingerprints without automatic deletion on fallback ambiguity.
+- [x] 6.5 Run `python3 -m pytest -q tests/test_intervals_config.py tests/test_intervals_client.py tests/test_intervals_matching.py`; expect all read and identity tests to pass.
+- [x] 6.6 Create Conventional Commit checkpoint `feat(intervals): add activity inventory and matching`.
 
 ## 7. Intervals Create, Update, Delete, and Verification
 
