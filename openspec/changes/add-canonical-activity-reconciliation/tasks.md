@@ -36,11 +36,11 @@
 
 ## 5. Existing Adapter Compatibility
 
-- [ ] 5.1 Add failing compatibility tests in `tests/test_use_case_sync_day.py`, `tests/test_weightxreps_push.py`, and `tests/test_vault_training_block.py` proving `sync DATE` retains its current vault and Weight x Reps scope even when another provider is configured.
-- [ ] 5.2 Adapt Garmin, vault, and Weight x Reps implementations to the new capability seams while preserving current daily existence, replacement confirmation, exercise resolution, full-day reconstruction, and read-back contracts.
-- [ ] 5.3 Keep `src/training_sync/use_cases/sync_day.py` as a compatibility entry point that delegates shared planning behavior without silently selecting Intervals.icu.
-- [ ] 5.4 Run `python3 -m pytest -q tests/test_use_case_sync_day.py tests/test_weightxreps_push.py tests/test_weightxreps_preview.py tests/test_vault_training_block.py tests/test_training_sync_cli.py`; expect all existing behavior and new compatibility tests to pass.
-- [ ] 5.5 Create Conventional Commit checkpoint `refactor(sync): route existing targets through reconciliation`.
+- [x] 5.1 Add failing compatibility tests in `tests/test_use_case_sync_day.py`, `tests/test_weightxreps_push.py`, and `tests/test_vault_training_block.py` proving `sync DATE` retains its current vault and Weight x Reps scope even when another provider is configured.
+- [x] 5.2 Adapt Garmin, vault, and Weight x Reps implementations to the new capability seams while preserving current daily existence, replacement confirmation, exercise resolution, full-day reconstruction, and read-back contracts.
+- [x] 5.3 Keep `src/training_sync/use_cases/sync_day.py` as a compatibility entry point that delegates shared planning behavior without silently selecting Intervals.icu.
+- [x] 5.4 Run `python3 -m pytest -q tests/test_use_case_sync_day.py tests/test_weightxreps_push.py tests/test_weightxreps_preview.py tests/test_vault_training_block.py tests/test_training_sync_cli.py`; expect all existing behavior and new compatibility tests to pass.
+- [x] 5.5 Create Conventional Commit checkpoint `refactor(sync): route existing targets through reconciliation`.
 
 ## 6. Intervals Read and Identity
 

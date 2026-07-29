@@ -8,6 +8,11 @@ from training_sync.vault.training_block import (
     replace_training_section,
     training_section_has_content,
 )
+from training_sync.use_cases.sync_day import SYNC_DAY_DEFAULT_SCOPE
+
+
+def test_vault_remains_an_explicit_legacy_sync_target():
+    assert "vault" in SYNC_DAY_DEFAULT_SCOPE.providers
 
 
 def test_daily_note_path_uses_existing_vault_pattern():

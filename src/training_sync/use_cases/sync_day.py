@@ -27,6 +27,11 @@ from training_sync.vault.training_block import (
 from training_sync.weightxreps.exercise_mapping import ExerciseMapping
 from training_sync.weightxreps.exercise_resolution import resolve_exercise_ids
 from training_sync.weightxreps.jeditor import build_jeditor_rows
+from training_sync.domain.reconciliation import SyncScope
+
+
+# The legacy command is deliberately not the "all configured" reconciliation.
+SYNC_DAY_DEFAULT_SCOPE = SyncScope.targets(("vault", "weightxreps"))
 
 
 @dataclass(frozen=True)
@@ -314,5 +319,6 @@ def apply_sync_plan(plan: SyncPlan, *, deps: SyncDependencies) -> SyncResult:
 
 
 def sync_day(date: str, *, yes: bool, deps: SyncDependencies) -> SyncResult:
+    # The compatibility entry point intentionally has no Intervals dependency.
     plan = preflight_sync_day(date, yes=yes, deps=deps)
     return apply_sync_plan(plan, deps=deps)
