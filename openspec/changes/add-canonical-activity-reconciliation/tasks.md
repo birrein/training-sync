@@ -4,7 +4,7 @@
 - [x] 1.2 Add failing canonical-model tests in `tests/test_canonical_training_model.py` for completed activity provenance, opaque source artifacts, mixed strength loads, ordered sets, and set/exercise/session effort scope.
 - [x] 1.3 Implement the provider-neutral values in `src/training_sync/domain/training.py` and export them through `src/training_sync/domain/__init__.py`.
 - [x] 1.4 Run `python3 -m pytest -q tests/test_canonical_training_model.py`; expect the new focused suite to pass.
-- [ ] 1.5 Create Conventional Commit checkpoint `refactor(domain): add canonical training model`.
+- [x] 1.5 Create Conventional Commit checkpoint `refactor(domain): add canonical training model`.
 
 ## 2. Garmin and Strength Representation Migration
 
@@ -13,7 +13,7 @@
 - [x] 2.3 Move `ParsedTrainingDay`, `ParsedExercise`, and `ParsedSetLine` ownership out of `src/training_sync/renderers/weightxreps_text.py` into canonical strength values while retaining parser and renderer compatibility.
 - [x] 2.4 Adapt `src/training_sync/garmin/import_strength.py`, `src/training_sync/renderers/garmin_daily.py`, `src/training_sync/weightxreps/client.py`, and `src/training_sync/weightxreps/jeditor.py` to the canonical values.
 - [x] 2.5 Run `python3 -m pytest -q tests/test_mapper.py tests/test_fetch.py tests/test_garmin_daily_renderer.py tests/test_parser.py tests/test_weightxreps_text.py tests/test_weightxreps_client.py tests/test_weightxreps_jeditor.py tests/test_strength_import_lifecycle.py`; expect all focused migration tests to pass.
-- [ ] 2.6 Create Conventional Commit checkpoint `refactor(training): centralize completed activity representations`.
+- [x] 2.6 Create Conventional Commit checkpoint `refactor(training): centralize completed activity representations`.
 
 ## 3. Provider-Neutral Exercise Catalog
 
@@ -22,17 +22,17 @@
 - [x] 3.3 Adapt `src/training_sync/weightxreps/exercise_mapping.py` and `src/training_sync/weightxreps/exercise_resolution.py` to read the legacy format and resolve through the neutral catalog.
 - [x] 3.4 Implement explicit safe catalog persistence with timestamped backup, collision validation, and post-write read-back; do not rewrite legacy configuration during read-only resolution.
 - [x] 3.5 Run `python3 -m pytest -q tests/test_exercise_catalog.py tests/test_weightxreps_exercise_mapping.py tests/test_weightxreps_exercise_resolution.py`; expect all catalog and compatibility tests to pass.
-- [ ] 3.6 Create Conventional Commit checkpoint `refactor(exercises): add provider-neutral catalog`.
+- [x] 3.6 Create Conventional Commit checkpoint `refactor(exercises): add provider-neutral catalog`.
 
 ## 4. Scoped Reconciliation Module
 
-- [ ] 4.1 Add failing tests in `tests/test_activity_reconciliation.py` for exact `SyncScope`, the explicit `all` scope, ambiguous scope rejection, deterministic operations, preview-only default, capability rejection, remote fingerprint mismatch, per-target results, and idempotent retry.
-- [ ] 4.2 Implement canonical reconciliation values in `src/training_sync/domain/reconciliation.py`, including replicas, target scope, operations, destructive consequences, fingerprints, plan, and result states.
-- [ ] 4.3 Implement capability interfaces and the shared plan/apply/read-back module in `src/training_sync/use_cases/activity_reconciliation.py` without a universal CRUD interface.
-- [ ] 4.4 Add failing tests proving provider-local edits affect only the selected replica and later canonical reconciliation surfaces drift instead of silently overwriting it.
-- [ ] 4.5 Implement provider-local edit planning through the same authorization, fingerprint, and verification flow.
-- [ ] 4.6 Run `python3 -m pytest -q tests/test_activity_reconciliation.py`; expect all reconciliation tests to pass.
-- [ ] 4.7 Create Conventional Commit checkpoint `feat(sync): add scoped activity reconciliation`.
+- [x] 4.1 Add failing tests in `tests/test_activity_reconciliation.py` for exact `SyncScope`, the explicit `all` scope, ambiguous scope rejection, deterministic operations, preview-only default, capability rejection, remote fingerprint mismatch, per-target results, and idempotent retry.
+- [x] 4.2 Implement canonical reconciliation values in `src/training_sync/domain/reconciliation.py`, including replicas, target scope, operations, destructive consequences, fingerprints, plan, and result states.
+- [x] 4.3 Implement capability interfaces and the shared plan/apply/read-back module in `src/training_sync/use_cases/activity_reconciliation.py` without a universal CRUD interface.
+- [x] 4.4 Add failing tests proving provider-local edits affect only the selected replica and later canonical reconciliation surfaces drift instead of silently overwriting it.
+- [x] 4.5 Implement provider-local edit planning through the same authorization, fingerprint, and verification flow.
+- [x] 4.6 Run `python3 -m pytest -q tests/test_activity_reconciliation.py`; expect all reconciliation tests to pass.
+- [x] 4.7 Create Conventional Commit checkpoint `feat(sync): add scoped activity reconciliation`.
 
 ## 5. Existing Adapter Compatibility
 
