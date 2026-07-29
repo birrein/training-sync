@@ -64,12 +64,12 @@
 
 ## 8. CLI Composition and User-Facing Preview
 
-- [ ] 8.1 Add failing CLI tests in `tests/test_training_sync_cli.py` for Intervals list/show/upload/update/delete commands, scoped reconciliation with repeatable explicit targets or `all`, preview default, exact-plan authorization, partial results, and redacted failures.
-- [ ] 8.2 Extend `src/training_sync/cli.py` with Intervals-specific direct lifecycle commands and scoped reconciliation composition while preserving existing command forms.
-- [ ] 8.3 Render plans with source, exact targets, remote IDs, match reasons, destructive consequences, fingerprints, and the replica retained after duplicate deletion.
-- [ ] 8.4 Render per-target `verified`, `failed`, and `not_attempted` results and return non-success for partial or verification failure.
-- [ ] 8.5 Run `python3 -m pytest -q tests/test_training_sync_cli.py tests/test_activity_reconciliation.py tests/test_intervals_client.py`; expect all CLI and orchestration tests to pass.
-- [ ] 8.6 Create Conventional Commit checkpoint `feat(cli): expose scoped activity lifecycle`.
+- [x] 8.1 Add failing CLI tests in `tests/test_training_sync_cli.py` for Intervals list/show/upload/update/delete commands, scoped reconciliation with repeatable explicit targets or `all`, preview default, exact-plan authorization, partial results, and redacted failures.
+- [x] 8.2 Extend `src/training_sync/cli.py` with Intervals-specific direct lifecycle commands and scoped reconciliation composition while preserving existing command forms.
+- [x] 8.3 Render plans with source, exact targets, remote IDs, match reasons, destructive consequences, fingerprints, and the replica retained after duplicate deletion.
+- [x] 8.4 Render per-target `verified`, `failed`, and `not_attempted` results and return non-success for partial or verification failure.
+- [x] 8.5 Run `python3 -m pytest -q tests/test_training_sync_cli.py tests/test_activity_reconciliation.py tests/test_intervals_client.py`; expect all CLI and orchestration tests to pass.
+- [x] 8.6 Create Conventional Commit checkpoint `feat(cli): expose scoped activity lifecycle`.
 
 ## 9. Full Verification and Documentation
 

@@ -19,6 +19,37 @@ def test_training_sync_sync_dispatches_yes(monkeypatch):
     assert calls == [("2026-07-03", True)]
 
 
+def test_intervals_list_and_show_are_read_only(monkeypatch, capsys):
+    calls = []
+    class Client:
+        def list_activities(self, oldest, newest): calls.append(("list", oldest, newest)); return []
+        def get_activity(self, activity_id): calls.append(("show", activity_id)); return type("A", (), {"id": "1"})()
+    monkeypatch.setattr(cli, "build_intervals_client", lambda: Client())
+    cli.main(["intervals", "list", "2026-07-01", "2026-07-02"])
+    assert calls == [("list", "2026-07-01", "2026-07-02")]
+    assert '"status"' not in capsys.readouterr().out
+
+
+def test_intervals_update_is_preview_by_default_and_apply_is_verified(monkeypatch, capsys):
+    calls = []
+    class Client:
+        def update(self, remote_id, payload): calls.append(("update", remote_id, payload))
+        def verify(self, remote_id, payload): calls.append(("verify", remote_id, payload)); return True
+    monkeypatch.setattr(cli, "build_intervals_client", lambda: Client())
+    cli.main(["intervals", "update", "42", "--name", "Fixed"])
+    assert calls == []
+    assert '"status": "preview"' in capsys.readouterr().out
+    cli.main(["intervals", "update", "42", "--name", "Fixed", "--yes"])
+    assert [call[0] for call in calls] == ["update", "verify"]
+
+
+def test_reconcile_requires_exact_targets_or_explicit_all(capsys):
+    cli.main(["reconcile", "--target", "intervals", "--target", "vault"])
+    assert '"status": "preview"' in capsys.readouterr().out
+    with pytest.raises(SystemExit):
+        cli.main(["reconcile"])
+
+
 def test_training_sync_sync_dispatches_without_confirmation(monkeypatch):
     calls = []
     monkeypatch.setattr(cli, "sync_day_cli", lambda date, yes: calls.append((date, yes)), raising=False)
