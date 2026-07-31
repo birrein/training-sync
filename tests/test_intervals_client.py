@@ -1,4 +1,5 @@
 import io
+from base64 import b64encode
 
 import pytest
 
@@ -38,6 +39,14 @@ def test_inventory_is_bounded_and_decoded():
     assert session.calls[0][2]["params"] == {"oldest": "2026-07-29", "newest": "2026-07-29"}
 
 
+def test_inventory_uses_intervals_personal_key_basic_auth_shape():
+    session = Session([Response([])])
+    IntervalsClient("0", "secret", session).list_activities("2026-07-29", "2026-07-29")
+    assert session.calls[0][2]["headers"]["Authorization"] == (
+        "Basic " + b64encode(b"API_KEY:secret").decode()
+    )
+
+
 def test_exact_get_download_and_actionable_error_are_secret_safe():
     session = Session([Response(row()), Response(content=b"source"), Response(status_code=403)])
     client = IntervalsClient("a", "secret-value", session)
@@ -68,6 +77,12 @@ def test_delete_tombstone_and_not_found_verification():
     assert client.verify("1", {"deleted": True})
     with pytest.raises(ValueError, match="exact"):
         client.delete("")
+
+
+def test_garmin_connect_source_deletion_discloses_tombstone():
+    activity = row(source="GARMIN_CONNECT")
+    client = IntervalsClient("a", "secret", Session([]))
+    assert "creates an Intervals tombstone" in client.destructive_consequence(client._decode(activity))
 
 
 @pytest.mark.parametrize("filename", ["ride.fit", "ride.tcx", "ride.gpx", "ride.zip", "ride.gz"])

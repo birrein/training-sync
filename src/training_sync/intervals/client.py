@@ -5,6 +5,7 @@ Intervals.  Mutation callers must still use the reconciliation preview/apply
 flow; this module only implements provider capabilities.
 """
 from dataclasses import dataclass
+from base64 import b64encode
 from hashlib import sha256
 from typing import Any, BinaryIO
 
@@ -53,9 +54,8 @@ class IntervalsClient:
 
     @property
     def _headers(self) -> dict[str, str]:
-        # requests accepts Basic auth too, but preserving this header keeps the
-        # adapter compatible with the documented personal-key contract.
-        return {"Authorization": f"Basic {self._api_key}"}
+        token = b64encode(f"API_KEY:{self._api_key}".encode()).decode()
+        return {"Authorization": f"Basic {token}"}
 
     def list_activities(self, oldest: str, newest: str) -> list[IntervalsActivity]:
         if not oldest or not newest:
@@ -115,7 +115,7 @@ class IntervalsClient:
         self._raise_for_status(response)
 
     def destructive_consequence(self, activity: IntervalsActivity) -> str:
-        if (activity.source or "").upper() in {"GARMIN", "STRAVA", "FITBIT", "POLAR"}:
+        if (activity.source or "").upper() in {"GARMIN", "GARMIN_CONNECT", "STRAVA", "FITBIT", "POLAR"}:
             return "Deletes an externally sourced activity and creates an Intervals tombstone; it is not removed automatically."
         return "Deletes this application-uploaded activity without an external-service tombstone."
 
