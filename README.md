@@ -21,6 +21,54 @@ Currently supports:
    pip install -e .
    ```
 
+### Local configuration
+
+All persistent, machine-specific configuration belongs under:
+
+```text
+~/.config/training-sync/
+```
+
+The configuration convention is consistent for future settings:
+
+1. A non-empty environment variable is an optional override and has priority.
+2. Otherwise, training-sync reads the setting's local file in the directory above.
+3. If neither source exists, an optional setting remains unset; a required
+   setting fails with an actionable error before provider clients are created.
+
+Keep values out of the repository. Store them by type:
+
+- Credentials and tokens: `garmin-token.json`, `weightxreps-token.json`, and
+  provider API-key files when an integration defines one. Treat these files as
+  secrets and do not copy them into source control.
+- IDs and mappings: `weightxreps-user-id` and
+  `weightxreps-exercises.toml`. These are local machine/user configuration.
+- Paths: `vault-root`, containing one absolute path to the local Obsidian vault.
+
+Vault-backed commands (`sync` and `weightxreps preview/push`) use
+`TRAINING_SYNC_VAULT_ROOT` as the optional override. Without it, save the local
+path in `~/.config/training-sync/vault-root`, for example:
+
+```text
+~/Documents/obsidian-vault
+```
+
+Or override it for one shell/session:
+
+```bash
+export TRAINING_SYNC_VAULT_ROOT="$HOME/Documents/obsidian-vault"
+```
+
+The environment value wins over the local file, and both forms must resolve to
+an absolute path. If neither is configured, training-sync stops before loading
+tokens or creating Garmin/Weight x Reps clients. The vault path is local
+configuration and is not sent to providers.
+
+When adding a new setting, define its environment variable, local filename,
+precedence, validation, and missing-value behavior in `training_sync.config`;
+then document the pair here. Do not add personal defaults or hardcoded machine
+paths.
+
 ## Authentication
 
 The first time you run a Garmin command, it will interactively ask for your Garmin Connect email and password in your terminal.

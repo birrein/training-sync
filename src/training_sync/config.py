@@ -8,6 +8,39 @@ def config_dir() -> Path:
     return Path.home() / ".config" / "training-sync"
 
 
+def vault_root_path() -> Path:
+    return config_dir() / "vault-root"
+
+
+def _load_local_setting(environment_name: str, local_path: Path) -> str | None:
+    configured_value = os.environ.get(environment_name)
+    if configured_value is None or not configured_value.strip():
+        if not local_path.exists():
+            return None
+        configured_value = local_path.read_text(encoding="utf-8")
+
+    configured_value = configured_value.strip()
+    return configured_value or None
+
+
+def vault_root() -> Path:
+    """Return the local Obsidian vault root using env-over-local precedence."""
+    configured_root = _load_local_setting("TRAINING_SYNC_VAULT_ROOT", vault_root_path())
+    if configured_root is None:
+        raise ValueError(
+            "Obsidian vault root is not configured. Set TRAINING_SYNC_VAULT_ROOT or "
+            f"save the absolute vault path in {vault_root_path()}."
+        )
+
+    root = Path(configured_root).expanduser()
+    if not root.is_absolute():
+        raise ValueError(
+            "Obsidian vault root must be an absolute path. "
+            "Set TRAINING_SYNC_VAULT_ROOT or update the local vault-root file."
+        )
+    return root
+
+
 def garmin_token_path() -> Path:
     return config_dir() / "garmin-token.json"
 
@@ -25,15 +58,8 @@ def weightxreps_user_id_path() -> Path:
 
 
 def load_weightxreps_user_id() -> int | None:
-    raw_user_id = os.environ.get("WEIGHTXREPS_USER_ID")
+    raw_user_id = _load_local_setting("WEIGHTXREPS_USER_ID", weightxreps_user_id_path())
     if raw_user_id is None:
-        path = weightxreps_user_id_path()
-        if not path.exists():
-            return None
-        raw_user_id = path.read_text(encoding="utf-8")
-
-    raw_user_id = raw_user_id.strip()
-    if not raw_user_id:
         return None
 
     try:

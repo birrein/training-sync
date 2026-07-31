@@ -75,6 +75,7 @@ def test_sync_day_cli_prints_structured_exercise_resolution_error(monkeypatch, t
         ),
     )
     monkeypatch.setattr(cli, "weightxreps_token_path", lambda: tmp_path / "token.json")
+    monkeypatch.setattr(cli, "vault_root", lambda: tmp_path / "vault")
     monkeypatch.setattr(cli, "build_weightxreps_client", lambda tokens, token_path: "client")
     monkeypatch.setattr(cli, "get_client", lambda: "garmin")
     monkeypatch.setattr(cli, "load_weightxreps_user_id", lambda: None)
@@ -198,7 +199,7 @@ def test_preview_weightxreps_day_uses_remote_exercise_ids(monkeypatch, tmp_path,
             calls.append(("exercise_ids", date))
             return {"Chin Up": 10}
 
-    monkeypatch.setattr(cli, "DEFAULT_VAULT_ROOT", tmp_path / "vault")
+    monkeypatch.setattr(cli, "vault_root", lambda: tmp_path / "vault")
     monkeypatch.setattr(cli, "weightxreps_token_path", lambda: tmp_path / "token.json")
     monkeypatch.setattr(cli, "weightxreps_exercise_mapping_path", lambda: tmp_path / "exercises.toml")
     monkeypatch.setattr(cli, "load_tokens", lambda path: tokens)
@@ -230,6 +231,7 @@ def test_preview_weightxreps_day_uses_remote_exercise_ids(monkeypatch, tmp_path,
 
 def test_preview_weightxreps_day_requires_auth_tokens(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "weightxreps_token_path", lambda: tmp_path / "token.json")
+    monkeypatch.setattr(cli, "vault_root", lambda: tmp_path / "vault")
     monkeypatch.setattr(cli, "load_tokens", lambda path: None)
 
     with pytest.raises(SystemExit) as exc:
@@ -353,7 +355,7 @@ def test_training_sync_weightxreps_exercises_resolve_prints_resolution_json(monk
         def exercise_ids(self, date):
             return {}
 
-    monkeypatch.setattr(cli, "DEFAULT_VAULT_ROOT", tmp_path / "vault")
+    monkeypatch.setattr(cli, "vault_root", lambda: tmp_path / "vault")
     monkeypatch.setattr(cli, "weightxreps_token_path", lambda: tmp_path / "token.json")
     monkeypatch.setattr(cli, "weightxreps_exercise_mapping_path", lambda: tmp_path / "map.toml")
     monkeypatch.setattr(
@@ -451,6 +453,7 @@ def test_training_sync_weightxreps_push_prints_resolution_json(monkeypatch, tmp_
         ),
     )
     monkeypatch.setattr(cli, "weightxreps_token_path", lambda: tmp_path / "token.json")
+    monkeypatch.setattr(cli, "vault_root", lambda: tmp_path / "vault")
     monkeypatch.setattr(cli, "weightxreps_exercise_mapping_path", lambda: tmp_path / "exercises.toml")
     monkeypatch.setattr(cli, "build_weightxreps_client", lambda tokens, token_path: "client")
     monkeypatch.setattr(cli, "load_exercise_mappings", lambda path: [])
@@ -474,6 +477,7 @@ def test_training_sync_weightxreps_push_prints_resolution_json(monkeypatch, tmp_
 def test_push_weightxreps_day_cli_passes_explicit_user_id(monkeypatch, tmp_path):
     calls = []
 
+    monkeypatch.setattr(cli, "vault_root", lambda: tmp_path / "vault")
     monkeypatch.setattr(
         cli,
         "load_tokens",
@@ -499,7 +503,7 @@ def test_push_weightxreps_day_cli_passes_explicit_user_id(monkeypatch, tmp_path)
     assert calls == [
         (
             (
-                cli.DEFAULT_VAULT_ROOT,
+                tmp_path / "vault",
                 "2026-06-19",
                 "client",
             ),
@@ -517,6 +521,7 @@ def test_push_weightxreps_day_cli_uses_env_user_id_fallback(monkeypatch, tmp_pat
     calls = []
 
     monkeypatch.setenv("WEIGHTXREPS_USER_ID", "67890")
+    monkeypatch.setattr(cli, "vault_root", lambda: tmp_path / "vault")
     monkeypatch.setattr(
         cli,
         "load_tokens",
@@ -540,6 +545,23 @@ def test_push_weightxreps_day_cli_uses_env_user_id_fallback(monkeypatch, tmp_pat
     cli.push_weightxreps_day_cli("2026-06-19", yes=True)
 
     assert calls[0]["user_id"] == 67890
+
+
+def test_vault_backed_cli_requires_vault_configuration_before_loading_tokens(monkeypatch):
+    monkeypatch.setattr(
+        cli,
+        "vault_root",
+        lambda: (_ for _ in ()).throw(
+            ValueError(
+                "TRAINING_SYNC_VAULT_ROOT is not set. "
+                "Set it to the absolute path of the local Obsidian vault before running this command."
+            )
+        ),
+    )
+    monkeypatch.setattr(cli, "load_tokens", lambda path: pytest.fail("tokens must not be loaded"))
+
+    with pytest.raises(SystemExit, match="TRAINING_SYNC_VAULT_ROOT"):
+        cli.preview_weightxreps_day("2026-06-19")
 
 
 def test_training_sync_top_level_help_shows_command_groups(monkeypatch, capsys):

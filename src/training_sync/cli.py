@@ -15,6 +15,7 @@ import webbrowser
 
 from training_sync.config import (
     load_weightxreps_user_id,
+    vault_root,
     weightxreps_exercise_mapping_path,
     weightxreps_token_path,
 )
@@ -38,7 +39,6 @@ from training_sync.weightxreps.client import WeightxRepsClient
 from training_sync.weightxreps.exercise_mapping import add_alias_mapping, add_create_mapping, load_exercise_mappings
 from training_sync.weightxreps.exercise_resolution import ExerciseResolutionRequired
 
-DEFAULT_VAULT_ROOT = Path("/Users/birrein/Library/Mobile Documents/iCloud~md~obsidian/Documents/brn-vault")
 WEIGHTXREPS_CLIENT_ID = "training-sync"
 WEIGHTXREPS_REDIRECT_URI = "http://127.0.0.1:8765/callback"
 WEIGHTXREPS_SCOPE = "jread,jwrite"
@@ -213,7 +213,15 @@ def _push_json_argument(client, json_arg: str) -> None:
     push_workout(client, workout_data)
 
 
+def _configured_vault_root() -> Path:
+    try:
+        return vault_root()
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
+
 def preview_weightxreps_day(date: str) -> None:
+    configured_vault_root = _configured_vault_root()
     token_path = weightxreps_token_path()
     tokens = load_tokens(token_path)
     if tokens is None:
@@ -222,7 +230,7 @@ def preview_weightxreps_day(date: str) -> None:
     client = build_weightxreps_client(tokens, token_path)
     try:
         rows = preview_weightxreps_day_from_vault(
-            DEFAULT_VAULT_ROOT,
+            configured_vault_root,
             date,
             exercise_ids=client.exercise_ids(date),
             exercise_mappings=load_exercise_mappings(weightxreps_exercise_mapping_path()),
@@ -233,6 +241,7 @@ def preview_weightxreps_day(date: str) -> None:
 
 
 def sync_day_cli(date: str, yes: bool) -> None:
+    configured_vault_root = _configured_vault_root()
     token_path = weightxreps_token_path()
     tokens = load_tokens(token_path)
     if tokens is None:
@@ -246,7 +255,7 @@ def sync_day_cli(date: str, yes: bool) -> None:
     deps = SyncDependencies(
         garmin=get_client(),
         weightxreps=build_weightxreps_client(tokens, token_path),
-        vault_root=DEFAULT_VAULT_ROOT,
+        vault_root=configured_vault_root,
         mappings=load_exercise_mappings(weightxreps_exercise_mapping_path()),
         user_id=user_id,
     )
@@ -258,6 +267,7 @@ def sync_day_cli(date: str, yes: bool) -> None:
 
 
 def push_weightxreps_day_cli(date: str, yes: bool, user_id: int | None = None) -> None:
+    configured_vault_root = _configured_vault_root()
     token_path = weightxreps_token_path()
     tokens = load_tokens(token_path)
     if tokens is None:
@@ -272,7 +282,7 @@ def push_weightxreps_day_cli(date: str, yes: bool, user_id: int | None = None) -
     client = build_weightxreps_client(tokens, token_path)
     try:
         result = push_weightxreps_day(
-            DEFAULT_VAULT_ROOT,
+            configured_vault_root,
             date,
             client,
             exercise_ids={},
