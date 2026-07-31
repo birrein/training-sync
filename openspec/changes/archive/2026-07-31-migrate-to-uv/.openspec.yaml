@@ -1,0 +1,4 @@
+schema: superpowers-bridge
+created: 2026-07-31
+goal: Provide reproducible uv setup with a lockfile while preserving Python
+  3.10+ and local provider configuration

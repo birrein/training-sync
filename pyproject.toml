@@ -16,3 +16,6 @@ dependencies = [
 
 [project.scripts]
 training-sync = "training_sync.cli:main"
+
+[dependency-groups]
+dev = ["pytest"]
