@@ -14,11 +14,13 @@ from urllib.parse import parse_qs, urlparse
 import webbrowser
 
 from training_sync.config import (
+    load_intervals_api_key,
     load_weightxreps_user_id,
     vault_root,
     weightxreps_exercise_mapping_path,
     weightxreps_token_path,
 )
+from training_sync.intervals.client import IntervalsClient, IntervalsError
 from training_sync.garmin.auth import get_client
 from training_sync.garmin.fetch import fetch_and_print_activities
 from training_sync.garmin.import_strength import parse_workout, push_workout
@@ -118,10 +120,43 @@ def _add_modern_subcommands(parser: argparse.ArgumentParser) -> None:
     )
     weightxreps_resolve.add_argument("date")
 
+    intervals = subparsers.add_parser("intervals", help="Intervals.icu activity commands")
+    intervals_subparsers = intervals.add_subparsers(dest="intervals_command")
+    intervals_list = intervals_subparsers.add_parser("list", help="List a bounded, read-only activity inventory")
+    intervals_list.add_argument("oldest", type=_iso_date)
+    intervals_list.add_argument("newest", type=_iso_date)
+    intervals_show = intervals_subparsers.add_parser("show", help="Read one exact activity")
+    intervals_show.add_argument("activity_id")
+    intervals_upload = intervals_subparsers.add_parser("upload", help="Preview or upload one source artifact")
+    intervals_upload.add_argument("artifact")
+    intervals_upload.add_argument("--external-id", required=True)
+    intervals_upload.add_argument("--yes", action="store_true", help="Authorize exactly this upload")
+    intervals_update = intervals_subparsers.add_parser("update", help="Preview or update supported fields")
+    intervals_update.add_argument("activity_id")
+    intervals_update.add_argument("--name", required=True)
+    intervals_update.add_argument("--yes", action="store_true")
+    intervals_delete = intervals_subparsers.add_parser("delete", help="Preview or delete an exact activity")
+    intervals_delete.add_argument("activity_id")
+    intervals_delete.add_argument("--yes", action="store_true")
+
+    reconcile = subparsers.add_parser("reconcile", help="Preview a scoped activity lifecycle plan")
+    reconcile.add_argument("--target", action="append", choices=("vault", "weightxreps", "intervals"))
+    reconcile.add_argument("--all", action="store_true", help="Select every configured compatible target explicitly")
+
 
 def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     if getattr(args, "command", None) == "sync":
         sync_day_cli(args.date, yes=args.yes)
+        return
+
+    if getattr(args, "command", None) == "intervals":
+        intervals_cli(args)
+        return
+
+    if getattr(args, "command", None) == "reconcile":
+        if args.all == bool(args.target):
+            parser.error("select repeatable --target values or --all, but not both")
+        print(json.dumps({"scope": "all" if args.all else args.target, "status": "preview", "operations": []}))
         return
 
     if getattr(args, "command", None) == "garmin" and args.garmin_command == "fetch":
@@ -186,6 +221,50 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
         return
 
     parser.print_help()
+
+
+def build_intervals_client() -> IntervalsClient:
+    key = load_intervals_api_key()
+    if not key:
+        raise RuntimeError("Intervals API key not found; set INTERVALS_API_KEY or ~/.config/training-sync/intervals-api-key")
+    return IntervalsClient("0", key)
+
+
+def intervals_cli(args: argparse.Namespace) -> None:
+    """Provider-local commands are preview-first and never touch other adapters."""
+    try:
+        client = build_intervals_client()
+        if args.intervals_command == "list":
+            print(json.dumps([asdict(item) for item in client.list_activities(args.oldest, args.newest)], indent=2))
+        elif args.intervals_command == "show":
+            print(json.dumps(asdict(client.get_activity(args.activity_id)), indent=2))
+        elif args.intervals_command == "upload":
+            payload = {"external_id": args.external_id, "artifact": (args.artifact, open(args.artifact, "rb"))}
+            _intervals_mutation(client, "upload", None, payload, yes=args.yes)
+        elif args.intervals_command == "update":
+            _intervals_mutation(client, "update", args.activity_id, {"name": args.name}, yes=args.yes)
+        elif args.intervals_command == "delete":
+            activity = client.get_activity(args.activity_id)
+            _intervals_mutation(client, "delete", args.activity_id, {"deleted": True, "consequence": client.destructive_consequence(activity)}, yes=args.yes)
+        else:
+            raise ValueError("Intervals command is required")
+    except (IntervalsError, ValueError, RuntimeError) as exc:
+        # Client errors intentionally do not include API-key material.
+        raise SystemExit(str(exc)) from exc
+
+
+def _intervals_mutation(client: IntervalsClient, operation: str, remote_id: str | None, payload: dict, *, yes: bool) -> None:
+    preview = {"provider": "intervals", "operation": operation, "remote_id": remote_id,
+               "payload": {key: value for key, value in payload.items() if key != "artifact"},
+               "status": "apply" if yes else "preview"}
+    print(json.dumps(preview, default=str))
+    if not yes:
+        return
+    result = getattr(client, operation)(remote_id, payload)
+    verified_id = str(result) if operation == "upload" else remote_id
+    if not client.verify(verified_id, payload):
+        raise SystemExit("Intervals read-back verification failed")
+    print(json.dumps({"provider": "intervals", "remote_id": verified_id, "state": "verified"}))
 
 
 def _iso_date(value: str) -> str:

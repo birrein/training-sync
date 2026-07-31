@@ -7,6 +7,7 @@ from typing import Any
 
 from training_sync.domain.activity_classification import classify_activity_type
 from training_sync.domain.garmin_activity import GarminActivity
+from training_sync.garmin.activity import decode_activity
 from training_sync.renderers.garmin_daily import render_training_activities
 from training_sync.renderers.weightxreps_text import (
     DISTANCE_UNIT_KILOMETERS,
@@ -26,6 +27,11 @@ from training_sync.vault.training_block import (
 from training_sync.weightxreps.exercise_mapping import ExerciseMapping
 from training_sync.weightxreps.exercise_resolution import resolve_exercise_ids
 from training_sync.weightxreps.jeditor import build_jeditor_rows
+from training_sync.domain.reconciliation import SyncScope
+
+
+# The legacy command is deliberately not the "all configured" reconciliation.
+SYNC_DAY_DEFAULT_SCOPE = SyncScope.targets(("vault", "weightxreps"))
 
 
 @dataclass(frozen=True)
@@ -128,7 +134,7 @@ def preflight_sync_day(date: str, *, yes: bool, deps: SyncDependencies) -> SyncP
     raw_activities = deps.garmin.get_activities_by_date(date, date)
     activities = tuple(
         sorted(
-            (GarminActivity.from_garmin(raw) for raw in raw_activities),
+            (decode_activity(raw) for raw in raw_activities),
             key=lambda activity: (activity.start_time, activity.activity_id),
         )
     )
@@ -313,5 +319,6 @@ def apply_sync_plan(plan: SyncPlan, *, deps: SyncDependencies) -> SyncResult:
 
 
 def sync_day(date: str, *, yes: bool, deps: SyncDependencies) -> SyncResult:
+    # The compatibility entry point intentionally has no Intervals dependency.
     plan = preflight_sync_day(date, yes=yes, deps=deps)
     return apply_sync_plan(plan, deps=deps)

@@ -7,6 +7,21 @@ Currently supports:
 2. **Pulling (Fetching)** your Garmin activities (Running, Cycling, etc.) for a given date formatted for Markdown vaults (like Obsidian).
 3. **Previewing and pushing** Weight x Reps training days from Obsidian daily notes.
 4. **Reconciling one complete day** from Garmin into an existing Obsidian daily note and Weight x Reps.
+5. **Reading and explicitly managing** Intervals.icu activity replicas.
+
+## Canonical activity safety
+
+Garmin is authoritative for verified objective completed activity data. The vault
+keeps subjective context (including RIR, global RPE, Feel, and recovery), while
+Weight x Reps is the structured strength destination. A Fitbod screenshot is
+only an import input: it is not a completed activity until Garmin has accepted
+it and a Garmin read-back verifies the expected workout.
+
+Targets are always explicit. The existing `training-sync sync DATE` command
+continues to affect only the vault and Weight x Reps; configuring Intervals.icu
+never adds it implicitly. New lifecycle commands preview first and require
+`--yes` to apply the exact displayed provider-local operation. A failed target
+is reported independently; verified targets are not rolled back.
 
 ## Installation
 
@@ -268,6 +283,45 @@ the command prints structured JSON with candidates and exits before writing.
 Mappings with `create_if_missing = true` still require the full catalog from a
 configured user id; without one, pushes keep using the safe partial JEditor
 catalog and reject creation before writing.
+
+### 6. Intervals.icu
+
+Store the personal API key outside the repository, either in the environment
+or in a local file (the key is never printed):
+
+```bash
+export INTERVALS_API_KEY='redacted-personal-key'
+# or: ~/.config/training-sync/intervals-api-key
+```
+
+Read-only inventory and exact activity lookup are safe smoke-test commands:
+
+```bash
+training-sync intervals list 2026-07-01 2026-07-01
+training-sync intervals show ACTIVITY_ID
+```
+
+Direct Intervals edits are isolated to that replica. They print a preview until
+explicitly authorized:
+
+```bash
+training-sync intervals upload ride.fit --external-id GARMIN_ACTIVITY_ID
+training-sync intervals update ACTIVITY_ID --name 'Corrected ride' --yes
+training-sync intervals delete ACTIVITY_ID
+```
+
+Deletion requires an exact remote ID. Deleting a Garmin, Strava, or another
+externally sourced Intervals activity can create an Intervals tombstone that
+prevents automatic re-import; the preview discloses this and the tool never
+removes tombstones automatically. Strava-sourced activities cannot be updated.
+
+For future scoped workflows, name targets repeatedly or select every configured
+compatible target explicitly; no empty or implicit mutation scope is accepted:
+
+```bash
+training-sync reconcile --target vault --target weightxreps
+training-sync reconcile --all
+```
 
 ## License
 MIT License

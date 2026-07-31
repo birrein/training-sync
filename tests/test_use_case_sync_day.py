@@ -12,6 +12,7 @@ from training_sync.use_cases.sync_day import (
     build_complete_training_day,
     preflight_sync_day,
     sync_day,
+    SYNC_DAY_DEFAULT_SCOPE,
 )
 from training_sync.weightxreps.client import VerificationMismatch
 from training_sync.weightxreps.exercise_mapping import ExerciseMapping
@@ -19,6 +20,11 @@ from training_sync.weightxreps.exercise_resolution import ExerciseResolutionRequ
 
 
 DATE = "2026-07-03"
+
+
+def test_sync_day_default_scope_excludes_newly_configured_providers():
+    assert SYNC_DAY_DEFAULT_SCOPE.providers == ("vault", "weightxreps")
+    assert SYNC_DAY_DEFAULT_SCOPE.all_configured is False
 
 
 def activity(activity_id: int, start: str, type_key: str = "running") -> dict:

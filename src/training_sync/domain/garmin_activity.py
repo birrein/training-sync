@@ -1,17 +1,7 @@
 """Normalized Garmin activity values used by synchronization."""
 
-from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
-from typing import cast
-
-
-def _optional_int(value: object | None) -> int | None:
-    return None if value is None else int(value)
-
-
-def _optional_float(value: object | None) -> float | None:
-    return None if value is None else float(value)
+from collections.abc import Mapping
 
 
 @dataclass(frozen=True)
@@ -31,29 +21,7 @@ class GarminActivity:
 
     @classmethod
     def from_garmin(cls, raw: Mapping[str, object]) -> "GarminActivity":
-        activity_type = cast(Mapping[str, object], raw["activityType"])
-        duration_seconds = float(raw["duration"])
-        distance = raw.get("distance")
-        start_time = raw.get("startTimeLocal")
-        if not isinstance(start_time, str):
-            raise ValueError("Garmin startTimeLocal must use YYYY-MM-DD HH:MM:SS")
-        try:
-            datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
-        except ValueError as exc:
-            raise ValueError(
-                "Garmin startTimeLocal must use YYYY-MM-DD HH:MM:SS"
-            ) from exc
-        return cls(
-            activity_id=int(raw["activityId"]),
-            name=str(raw["activityName"]),
-            start_time=start_time,
-            type_key=str(activity_type["typeKey"]),
-            duration_ms=round(duration_seconds * 1000),
-            distance_m=float(distance) if distance is not None else None,
-            average_hr=_optional_int(raw.get("averageHR")),
-            max_hr=_optional_int(raw.get("maxHR")),
-            elevation_gain_m=_optional_float(raw.get("elevationGain")),
-            average_power_w=_optional_int(raw.get("avgPower")),
-            calories=_optional_int(raw.get("calories")),
-            training_load=_optional_float(raw.get("activityTrainingLoad")),
-        )
+        # Compatibility entry point; decoding itself belongs to the adapter.
+        from training_sync.garmin.activity import decode_activity
+
+        return decode_activity(raw)

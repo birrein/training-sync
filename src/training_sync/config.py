@@ -57,6 +57,18 @@ def weightxreps_user_id_path() -> Path:
     return config_dir() / "weightxreps-user-id"
 
 
+def intervals_api_key_path() -> Path:
+    return config_dir() / "intervals-api-key"
+
+
+def load_intervals_api_key() -> str | None:
+    value = os.environ.get("INTERVALS_API_KEY")
+    if value is None:
+        path = intervals_api_key_path()
+        value = path.read_text(encoding="utf-8") if path.exists() else None
+    return value.strip() if value and value.strip() else None
+
+
 def load_weightxreps_user_id() -> int | None:
     raw_user_id = _load_local_setting("WEIGHTXREPS_USER_ID", weightxreps_user_id_path())
     if raw_user_id is None:

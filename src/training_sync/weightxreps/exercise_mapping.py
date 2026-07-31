@@ -7,6 +7,12 @@ from pathlib import Path
 import re
 import shutil
 
+from training_sync.domain.exercise_catalog import (
+    ExerciseCatalog,
+    ExerciseIdentity,
+    ProviderBinding,
+)
+
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
@@ -48,6 +54,71 @@ def load_exercise_mappings(path: Path) -> list[ExerciseMapping]:
     ]
     _validate_unique_aliases(mappings)
     return mappings
+
+
+def load_exercise_catalog(path: Path) -> ExerciseCatalog:
+    """Read legacy Weight x Reps mappings without rewriting them."""
+    return ExerciseCatalog(
+        exercises=tuple(
+            ExerciseIdentity(
+                key=normalize_exercise_name(mapping.weightxreps_name).replace(" ", "_"),
+                name=mapping.weightxreps_name,
+                aliases=tuple(mapping.aliases),
+                providers={
+                    "weightxreps": ProviderBinding(
+                        name=mapping.weightxreps_name,
+                        remote_id=mapping.weightxreps_id,
+                        create_if_missing=mapping.create_if_missing,
+                    )
+                },
+            )
+            for mapping in load_exercise_mappings(path)
+        )
+    )
+
+
+def save_exercise_catalog(path: Path, catalog: ExerciseCatalog) -> None:
+    """Persist the neutral catalog only on explicit mapping mutation.
+
+    Existing mapping files are backed up first and the saved catalog is read
+    back, so a conversion is never silently accepted.
+    """
+    mappings = [
+        ExerciseMapping(
+            weightxreps_name=exercise.providers.get("weightxreps", ProviderBinding(exercise.name)).name,
+            weightxreps_id=exercise.providers.get("weightxreps", ProviderBinding(exercise.name)).remote_id,
+            aliases=list(exercise.aliases),
+            create_if_missing=exercise.providers.get("weightxreps", ProviderBinding(exercise.name)).create_if_missing,
+        )
+        for exercise in catalog.exercises
+        if "weightxreps" in exercise.providers
+    ]
+    _validate_unique_aliases(mappings)
+    _backup_if_exists(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_dump_exercise_mappings(mappings), encoding="utf-8")
+    path.chmod(0o600)
+    expected = _catalog_signature(catalog)
+    observed = _catalog_signature(load_exercise_catalog(path))
+    if expected != observed:
+        raise RuntimeError("Exercise catalog read-back failed")
+
+
+def _catalog_signature(catalog: ExerciseCatalog) -> tuple[tuple[object, ...], ...]:
+    return tuple(
+        sorted(
+            (
+                normalize_exercise_name(exercise.name),
+                tuple(sorted(normalize_exercise_name(alias) for alias in exercise.aliases)),
+                binding.name,
+                binding.remote_id,
+                binding.create_if_missing,
+            )
+            for exercise in catalog.exercises
+            for provider, binding in exercise.providers.items()
+            if provider == "weightxreps"
+        )
+    )
 
 
 def add_alias_mapping(

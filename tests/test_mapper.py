@@ -1,4 +1,20 @@
 from training_sync.garmin.exercise_mapping import get_mapping
+from training_sync.garmin.activity import decode_activity
+
+
+def test_garmin_payload_decoding_is_owned_by_garmin_adapter():
+    activity = decode_activity(
+        {
+            "activityId": 42,
+            "activityName": "Morning Ride",
+            "activityType": {"typeKey": "cycling"},
+            "startTimeLocal": "2026-07-28 07:30:00",
+            "duration": 60,
+        }
+    )
+
+    assert activity.activity_id == 42
+    assert activity.duration_ms == 60_000
 
 
 def test_face_pull_uses_row_mapping_instead_of_suspension():
