@@ -17,7 +17,7 @@ Weight x Reps is the structured strength destination. A Fitbod screenshot is
 only an import input: it is not a completed activity until Garmin has accepted
 it and a Garmin read-back verifies the expected workout.
 
-Targets are always explicit. The existing `uv run training-sync sync DATE` command
+Targets are always explicit. The existing `training-sync sync DATE` command
 continues to affect only the vault and Weight x Reps; configuring Intervals.icu
 never adds it implicitly. New lifecycle commands preview first and require
 `--yes` to apply the exact displayed provider-local operation. A failed target
@@ -37,16 +37,53 @@ is reported independently; verified targets are not rolled back.
    ```
 
 The project keeps standard PEP 621 metadata and the setuptools build backend,
-so pip installation remains technically supported. The documented development
-workflow uses uv and the committed `uv.lock` for reproducible dependency
-resolution. Commands can be run with `uv run`; manually activating a virtual
-environment is not required.
+so pip installation remains technically supported. The development workflow
+uses uv and the committed `uv.lock` for reproducible dependency resolution.
+
+### Direct operational CLI
+
+For normal operational use, install the CLI once as a persistent, non-editable
+uv tool from the checkout you want to use as its source:
+
+```bash
+uv tool install /path/to/training-sync
+uv tool update-shell
+```
+
+`uv tool update-shell` helps add uv's tool executable directory to your PATH;
+run it only when needed for your shell. After that, invoke the CLI directly
+from any checkout or working directory:
+
+```bash
+training-sync --help
+training-sync sync YYYY-MM-DD
+```
+
+This project change does not install a tool or modify your shell. The
+non-editable install is the portable default because it copies/builds the
+package into uv's isolated tool environment instead of binding the executable
+to one checkout.
+
+To make another local checkout the source of the direct command, explicitly
+reinstall it:
+
+```bash
+uv tool install --force /path/to/training-sync
+```
+
+`uv tool upgrade training-sync` refreshes the tool's recorded source; it does
+not select an arbitrary different checkout. Use `--force` with the desired
+checkout when switching sources. `uv tool install --editable` is available for
+local development, but it points to that exact checkout and is not the portable
+multi-checkout default.
 
 ### Development and testing
 
-Run project commands and tests through the uv-managed environment:
+The persistent operational tool and the repository's development environment
+are separate. Run project commands and tests through the lock-backed environment:
 
 ```bash
+uv sync --locked --dev
 uv run training-sync --help
 uv run pytest -q
 ```
@@ -62,7 +99,9 @@ uv sync --locked --dev
 
 `uv sync --locked --dev` fails instead of rewriting `uv.lock` when the project
 metadata and lockfile disagree. Dependency setup does not read or modify the
-local credentials, mappings, IDs, or vault path described below.
+local credentials, mappings, IDs, or vault path described below. The separate
+`uv tool install` environment is for direct operation and does not replace the
+repository lockfile.
 
 ### Local configuration
 
@@ -130,7 +169,7 @@ Future executions reuse this token automatically.
 Import a strength-training JSON document by providing its file path:
 
 ```bash
-uv run training-sync garmin import-strength example_workout.json
+training-sync garmin import-strength example_workout.json
 ```
 
 The package uses `src/training_sync/garmin/garmin_exercises.json` to map imported exercise names to Garmin enum IDs. If a mapping is missing or incorrect, update `FITBOD_CUSTOM_MAP` in `src/training_sync/garmin/exercise_mapping.py`.
@@ -140,7 +179,7 @@ The package uses `src/training_sync/garmin/garmin_exercises.json` to map importe
 To download and format your activities for a specific date:
 
 ```bash
-uv run training-sync garmin fetch 2026-06-13
+training-sync garmin fetch 2026-06-13
 ```
 
 This will print out all activities recorded on that date in a clean Markdown format with the exact Garmin metrics (Pace, HR, Training Load, Cadence, Power, etc.), ready to be pasted into your daily notes.
@@ -156,7 +195,7 @@ For strength activities, the fetch output includes the closest Garmin weigh-in a
 To print only the closest Garmin body-weight tag for a specific date:
 
 ```bash
-uv run training-sync garmin weight 2026-06-19
+training-sync garmin weight 2026-06-19
 ```
 
 This uses the nearest available Garmin weigh-in around the requested date and prints a Weight x Reps-compatible line.
@@ -168,7 +207,7 @@ note, and replace the corresponding Weight x Reps day with one reconciled
 full-day payload:
 
 ```bash
-uv run training-sync sync YYYY-MM-DD [--yes]
+training-sync sync YYYY-MM-DD [--yes]
 ```
 
 The daily note must already exist and contain the exact `## 🏃 Training`
@@ -218,19 +257,19 @@ Implementation notes:
 Authenticate once:
 
 ```bash
-uv run training-sync weightxreps auth
+training-sync weightxreps auth
 ```
 
 Preview a day:
 
 ```bash
-uv run training-sync weightxreps preview 2026-06-19
+training-sync weightxreps preview 2026-06-19
 ```
 
 Push a day, replacing existing Weight x Reps content only when confirmed:
 
 ```bash
-uv run training-sync weightxreps push 2026-06-19 --yes
+training-sync weightxreps push 2026-06-19 --yes
 ```
 
 When pushing a day that intentionally creates new exercises, provide your
@@ -238,7 +277,7 @@ Weight x Reps user id so the command can load the full exercise catalog before
 writing:
 
 ```bash
-uv run training-sync weightxreps push 2026-06-19 --yes --user-id 12345
+training-sync weightxreps push 2026-06-19 --yes --user-id 12345
 ```
 
 You can also set it once outside the repo:
@@ -256,13 +295,13 @@ or store only the numeric id in:
 Resolve a day before pushing:
 
 ```bash
-uv run training-sync weightxreps exercises resolve 2026-06-20
+training-sync weightxreps exercises resolve 2026-06-20
 ```
 
 Map an incoming exercise to an existing Weight x Reps exercise:
 
 ```bash
-uv run training-sync weightxreps exercises map \
+training-sync weightxreps exercises map \
   --incoming "Barbell Hip Thrust with Bench" \
   --existing-name "Barbell Hip Thrust" \
   --existing-id 157721
@@ -271,7 +310,7 @@ uv run training-sync weightxreps exercises map \
 Allow creating a new exercise only when it is intentional:
 
 ```bash
-uv run training-sync weightxreps exercises create \
+training-sync weightxreps exercises create \
   --incoming "New Exercise Name"
 ```
 
@@ -325,17 +364,17 @@ export INTERVALS_API_KEY='redacted-personal-key'
 Read-only inventory and exact activity lookup are safe smoke-test commands:
 
 ```bash
-uv run training-sync intervals list 2026-07-01 2026-07-01
-uv run training-sync intervals show ACTIVITY_ID
+training-sync intervals list 2026-07-01 2026-07-01
+training-sync intervals show ACTIVITY_ID
 ```
 
 Direct Intervals edits are isolated to that replica. They print a preview until
 explicitly authorized:
 
 ```bash
-uv run training-sync intervals upload ride.fit --external-id GARMIN_ACTIVITY_ID
-uv run training-sync intervals update ACTIVITY_ID --name 'Corrected ride' --yes
-uv run training-sync intervals delete ACTIVITY_ID
+training-sync intervals upload ride.fit --external-id GARMIN_ACTIVITY_ID
+training-sync intervals update ACTIVITY_ID --name 'Corrected ride' --yes
+training-sync intervals delete ACTIVITY_ID
 ```
 
 Deletion requires an exact remote ID. Deleting a Garmin, Strava, or another
@@ -347,8 +386,8 @@ For future scoped workflows, name targets repeatedly or select every configured
 compatible target explicitly; no empty or implicit mutation scope is accepted:
 
 ```bash
-uv run training-sync reconcile --target vault --target weightxreps
-uv run training-sync reconcile --all
+training-sync reconcile --target vault --target weightxreps
+training-sync reconcile --all
 ```
 
 ## License
