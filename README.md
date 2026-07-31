@@ -56,6 +56,7 @@ from any checkout or working directory:
 
 ```bash
 training-sync --help
+training-sync --version
 training-sync sync YYYY-MM-DD
 ```
 

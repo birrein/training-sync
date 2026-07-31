@@ -10,6 +10,17 @@ from training_sync.weightxreps.exercise_resolution import (
 )
 
 
+def test_training_sync_version_uses_installed_distribution_metadata(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "distribution_version", lambda name: "9.8.7")
+    monkeypatch.setattr(cli, "_program_name", lambda: "training-sync")
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--version"])
+
+    assert exc.value.code == 0
+    assert capsys.readouterr().out == "training-sync 9.8.7\n"
+
+
 def test_training_sync_sync_dispatches_yes(monkeypatch):
     calls = []
     monkeypatch.setattr(cli, "sync_day_cli", lambda date, yes: calls.append((date, yes)), raising=False)

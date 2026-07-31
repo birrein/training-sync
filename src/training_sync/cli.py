@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from dataclasses import asdict
 from datetime import date as calendar_date
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from importlib.metadata import PackageNotFoundError, version as distribution_version
 import json
 import os
 from pathlib import Path
@@ -57,8 +58,20 @@ def _build_parser() -> argparse.ArgumentParser:
         prog=_program_name(),
         description="Sync training data across Garmin, Obsidian, and Weight x Reps.",
     )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {_distribution_version()}",
+    )
     _add_modern_subcommands(parser)
     return parser
+
+
+def _distribution_version() -> str:
+    try:
+        return distribution_version("training-sync")
+    except PackageNotFoundError:
+        return "unknown"
 
 
 def _add_modern_subcommands(parser: argparse.ArgumentParser) -> None:
