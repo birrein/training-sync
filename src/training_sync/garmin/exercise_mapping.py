@@ -12,6 +12,10 @@ FITBOD_CUSTOM_MAP = {
     "BARBELL BENCH PRESS": {"category": "BENCH_PRESS", "name": "BARBELL_BENCH_PRESS"},
     "FACE PULL": {"category": "ROW", "name": "FACE_PULL"},
     "CABLE FACE PULL": {"category": "ROW", "name": "FACE_PULL"},
+    # Fitbod's generic pull-up is a standard bodyweight pull-up, not a
+    # suspension-trainer variant (TRX/rings).  Override the catalog entry,
+    # which historically classified this name as SUSPENSION.
+    "PULL UP": {"category": "PULL_UP", "name": "PULL_UP"},
     "DEADLIFT": {"category": "DEADLIFT", "name": "BARBELL_DEADLIFT"},
     "BARBELL DEADLIFT": {"category": "DEADLIFT", "name": "BARBELL_DEADLIFT"},
     "BARBELL HIP THRUST": {

@@ -37,6 +37,14 @@ def test_cable_face_pull_maps_to_garmin_face_pull():
     }
 
 
+def test_generic_pull_up_maps_to_standard_garmin_pull_up():
+    assert get_mapping("Pull Up", {}) == {
+        "category": "PULL_UP",
+        "name": "PULL_UP",
+        "probability": 100.0,
+    }
+
+
 def test_fitbod_upper_body_aliases_use_garmin_enum_names():
     assert get_mapping("Single Arm Preacher Curl", {}) == {
         "category": "CURL",
