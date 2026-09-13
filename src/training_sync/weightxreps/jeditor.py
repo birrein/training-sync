@@ -17,6 +17,7 @@ def build_jeditor_rows(
     day: ParsedTrainingDay,
     exercise_ids: dict[str, int | None],
 ) -> list[dict[str, Any]]:
+    _validate_strength_semantics(day)
     rows: list[dict[str, Any]] = []
     if day.body_weight_kg is not None:
         rows.append({"bw": day.body_weight_kg, "lb": 0})
@@ -50,13 +51,14 @@ def _set_line_to_erow(set_line: ParsedSetLine) -> dict[str, Any]:
 
     reps_counts = Counter(set_line.reps)
     if len(reps_counts) != 1:
-        return {
-            "w": _weight_payload(set_line),
-            "r": set_line.reps[0],
-            "s": 1,
-            "type": WEIGHT_X_REPS_SET_TYPE,
-            "c": "Unconsolidated reps: " + ", ".join(str(rep) for rep in set_line.reps),
-        }
+        raise ValueError(
+            "different repetition counts must use one line per physical set; "
+            "do not consolidate them"
+        )
+    if len(set_line.reps) > 1 and set_line.rpe is not None:
+        raise ValueError(
+            "RPE must be attached to a single final set, not a consolidated line"
+        )
 
     reps, sets = next(iter(reps_counts.items()))
     row = {
@@ -100,3 +102,23 @@ def _weight_payload(set_line: ParsedSetLine) -> dict[str, Any]:
     if set_line.uses_bodyweight:
         payload["usebw"] = 1
     return payload
+
+
+def _validate_strength_semantics(day: ParsedTrainingDay) -> None:
+    for exercise in day.exercises:
+        if not exercise.sets or not all(set_line.set_type == WEIGHT_X_REPS_SET_TYPE for set_line in exercise.sets):
+            continue
+
+        effort_indexes = [
+            index
+            for index, set_line in enumerate(exercise.sets)
+            if set_line.rpe is not None
+        ]
+        if effort_indexes and effort_indexes != [len(exercise.sets) - 1]:
+            raise ValueError(
+                f"RPE for {exercise.name} must be attached to the final set"
+            )
+        if effort_indexes and len(exercise.sets[-1].reps) != 1:
+            raise ValueError(
+                f"RPE for {exercise.name} must be attached to a single final set"
+            )

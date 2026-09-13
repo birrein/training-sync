@@ -135,3 +135,43 @@ def test_set_line_to_erow_preserves_strength_payload_shape():
     assert _set_line_to_erow(
         ParsedSetLine(weight_kg=51.0, reps=(8,), rpe=9)
     ) == {"w": {"v": 51.0, "lb": 0}, "r": 8, "s": 1, "type": 0, "rpe": 9}
+
+
+def test_set_line_to_erow_rejects_different_reps_in_one_consolidated_line():
+    with pytest.raises(ValueError, match="different repetition counts"):
+        _set_line_to_erow(ParsedSetLine(weight_kg=8.0, reps=(12, 13)))
+
+
+def test_build_jeditor_rows_requires_rpe_on_the_final_single_set():
+    day = ParsedTrainingDay(
+        date="2026-06-19",
+        body_weight_kg=None,
+        exercises=[
+            ParsedExercise(
+                name="Barbell Row",
+                sets=[
+                    ParsedSetLine(weight_kg=51.0, reps=(8,), rpe=9),
+                    ParsedSetLine(weight_kg=51.0, reps=(7,)),
+                ],
+            )
+        ],
+    )
+
+    with pytest.raises(ValueError, match="final set"):
+        build_jeditor_rows(day, exercise_ids={"Barbell Row": 20})
+
+
+def test_build_jeditor_rows_rejects_rpe_on_a_consolidated_line():
+    day = ParsedTrainingDay(
+        date="2026-06-19",
+        body_weight_kg=None,
+        exercises=[
+            ParsedExercise(
+                name="Barbell Row",
+                sets=[ParsedSetLine(weight_kg=51.0, reps=(8, 8), rpe=9)],
+            )
+        ],
+    )
+
+    with pytest.raises(ValueError, match="single final set"):
+        build_jeditor_rows(day, exercise_ids={"Barbell Row": 20})

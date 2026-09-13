@@ -49,6 +49,27 @@ def test_graphql_posts_with_bearer_token():
     assert session.calls[0][2]["Authorization"] == "Bearer token-123"
 
 
+def test_current_username_reads_authenticated_weightxreps_user():
+    session = FakeSession(
+        {"data": {"getSession": {"user": {"uname": "birrein"}}}}
+    )
+    client = WeightxRepsClient(access_token="token-123", session=session)
+
+    assert client.current_username() == "birrein"
+    assert session.calls[0][1]["variables"] == {}
+
+
+def test_journal_url_points_directly_to_the_user_date_log():
+    session = FakeSession(
+        {"data": {"getSession": {"user": {"uname": "birrein"}}}}
+    )
+    client = WeightxRepsClient(access_token="token-123", session=session)
+
+    assert client.journal_url("2026-08-05") == (
+        "https://weightxreps.net/journal/birrein/2026-08-05"
+    )
+
+
 def test_graphql_refreshes_token_once_after_unauthorized_response():
     session = FakeSession(
         [

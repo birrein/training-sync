@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import quote
 
 import requests
 
@@ -70,6 +71,20 @@ query ExerciseCatalog($uid: ID!) {
   }
 }
 """
+
+CURRENT_USER_QUERY = """
+query GetSession {
+  getSession {
+    user {
+      uname
+    }
+  }
+}
+"""
+
+
+def build_journal_url(username: str, date: str) -> str:
+    return f"https://weightxreps.net/journal/{quote(username, safe='')}/{date}"
 
 
 class VerificationMismatch(RuntimeError):
@@ -179,6 +194,16 @@ class WeightxRepsClient:
             if name and exercise_id:
                 ids[name] = int(exercise_id)
         return ids
+
+    def current_username(self) -> str:
+        user = (self.graphql(CURRENT_USER_QUERY).get("getSession") or {}).get("user") or {}
+        username = user.get("uname")
+        if not username:
+            raise RuntimeError("Weight x Reps authenticated username was not returned")
+        return str(username)
+
+    def journal_url(self, date: str) -> str:
+        return build_journal_url(self.current_username(), date)
 
     def verify_day(self, date: str, rows: list[dict[str, Any]]) -> None:
         day = self.jeditor_day(date)

@@ -355,7 +355,9 @@ def sync_day_cli(date: str, yes: bool) -> None:
         result = sync_day(date, yes=yes, deps=deps)
     except ExerciseResolutionRequired as exc:
         _exit_with_resolution_payload(exc)
-    print(json.dumps(asdict(result), default=str))
+    output = asdict(result)
+    output["weightxreps_url"] = _weightxreps_url(deps.weightxreps, date)
+    print(json.dumps(output, default=str))
 
 
 def push_weightxreps_day_cli(date: str, yes: bool, user_id: int | None = None) -> None:
@@ -384,7 +386,15 @@ def push_weightxreps_day_cli(date: str, yes: bool, user_id: int | None = None) -
         )
     except ExerciseResolutionRequired as exc:
         _exit_with_resolution_payload(exc)
-    print(result)
+    print(json.dumps({
+        "status": result,
+        "weightxreps_url": _weightxreps_url(client, date),
+    }))
+
+
+def _weightxreps_url(client, date: str) -> str | None:
+    journal_url = getattr(client, "journal_url", None)
+    return journal_url(date) if callable(journal_url) else None
 
 
 def _exit_with_resolution_payload(exc: ExerciseResolutionRequired) -> None:

@@ -559,6 +559,34 @@ def test_push_weightxreps_day_cli_passes_explicit_user_id(monkeypatch, tmp_path)
     ]
 
 
+def test_push_weightxreps_day_cli_prints_direct_weightxreps_url(monkeypatch, tmp_path, capsys):
+    class Client:
+        def journal_url(self, date):
+            return f"https://weightxreps.net/journal/birrein/{date}"
+
+    monkeypatch.setattr(cli, "vault_root", lambda: tmp_path / "vault")
+    monkeypatch.setattr(
+        cli,
+        "load_tokens",
+        lambda path: TokenSet(
+            access_token="token",
+            refresh_token="refresh",
+            expires_in=3600,
+            token_type="Bearer",
+        ),
+    )
+    monkeypatch.setattr(cli, "weightxreps_token_path", lambda: tmp_path / "token.json")
+    monkeypatch.setattr(cli, "weightxreps_exercise_mapping_path", lambda: tmp_path / "exercises.toml")
+    monkeypatch.setattr(cli, "build_weightxreps_client", lambda tokens, token_path: Client())
+    monkeypatch.setattr(cli, "load_exercise_mappings", lambda path: [])
+    monkeypatch.setattr(cli, "push_weightxreps_day", lambda *args, **kwargs: "saved")
+
+    cli.push_weightxreps_day_cli("2026-06-19", yes=True, user_id=12345)
+
+    output = capsys.readouterr().out
+    assert '"weightxreps_url": "https://weightxreps.net/journal/birrein/2026-06-19"' in output
+
+
 def test_push_weightxreps_day_cli_uses_env_user_id_fallback(monkeypatch, tmp_path):
     calls = []
 
