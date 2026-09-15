@@ -33,7 +33,29 @@ def plan(name="Managed Plan", kg=83):
                         {"reps": 10, "load": {"kind": "mass", "kg": kg, "basis": "total"}}
                     ],
                     "rest_between_sets": None,
-                    "rest_after_exercise": None,
+                    "rest_after_exercise": {"until": "time", "seconds": 165},
+                }
+            ],
+        }
+    )
+
+
+def grouped_plan(name="Managed Grouped Plan", kg=83):
+    return planned_workout_from_dict(
+        {
+            "schema_version": 1,
+            "key": "managed-grouped-plan",
+            "name": name,
+            "sport": "strength_training",
+            "exercises": [
+                {
+                    "name": "Romanian Deadlift",
+                    "sets": [
+                        {"reps": 10, "load": {"kind": "mass", "kg": kg, "basis": "total"}},
+                        {"reps": 10, "load": {"kind": "mass", "kg": kg, "basis": "total"}},
+                    ],
+                    "rest_between_sets": {"until": "time", "seconds": 165},
+                    "rest_after_exercise": {"until": "time", "seconds": 165},
                 }
             ],
         }
@@ -102,6 +124,19 @@ def remote_plan(plan_name="Remote Plan"):
     return payload
 
 
+def remote_grouped_plan(*, flat=False):
+    payload = project_planned_workout(grouped_plan()).payload
+    if flat:
+        projection = project_planned_workout(grouped_plan())
+        payload["workoutSegments"][0]["workoutSteps"] = [
+            deepcopy(step) for step in projection.steps
+        ]
+    payload["workoutId"] = 7
+    payload["author"] = {"name": "manual owner"}
+    payload["unrelatedMetadata"] = {"keep": True}
+    return payload
+
+
 def test_inventory_is_bounded_paginated_and_includes_manual_workouts():
     client = FakeManagementClient(
         {
@@ -148,6 +183,85 @@ def test_update_preserves_unrelated_remote_fields_and_verifies_template_scope():
     assert saved["author"] == {"name": "manual owner"}
     assert saved["unrelatedMetadata"] == {"keep": True}
     assert saved["workoutSegments"][0]["workoutSteps"][0]["weightValue"] == 90000
+
+
+def test_update_converts_exact_flat_template_to_grouped_without_losing_metadata():
+    client = FakeManagementClient({7: remote_grouped_plan(flat=True)})
+
+    result = update_workout(
+        client,
+        7,
+        grouped_plan(kg=90),
+        authorized=True,
+        journal_path=None,
+    )
+
+    saved = client.workouts[7]
+    steps = saved["workoutSegments"][0]["workoutSteps"]
+    assert result.state == "verified"
+    assert result.workout_id == 7
+    assert client.update_calls == 1
+    assert steps[0]["type"] == "RepeatGroupDTO"
+    assert steps[0]["numberOfIterations"] == 2
+    assert steps[0]["workoutSteps"][0]["weightValue"] == 90000
+    assert saved["author"] == {"name": "manual owner"}
+    assert saved["unrelatedMetadata"] == {"keep": True}
+
+
+def test_update_edits_grouped_load_and_preserves_group_and_metadata():
+    client = FakeManagementClient({7: remote_grouped_plan()})
+
+    result = update_workout(
+        client,
+        7,
+        grouped_plan(kg=90),
+        authorized=True,
+        journal_path=None,
+    )
+
+    saved_group = client.workouts[7]["workoutSegments"][0]["workoutSteps"][0]
+    assert result.state == "verified"
+    assert saved_group["type"] == "RepeatGroupDTO"
+    assert saved_group["numberOfIterations"] == 2
+    assert saved_group["workoutSteps"][0]["weightValue"] == 90000
+    assert client.workouts[7]["unrelatedMetadata"] == {"keep": True}
+
+
+def test_grouped_duplicate_preserves_repeat_tree_and_unrelated_metadata():
+    client = FakeManagementClient({7: remote_grouped_plan()})
+
+    result = duplicate_workout(
+        client,
+        7,
+        name="Grouped Copy",
+        authorized=True,
+        journal_path=None,
+    )
+
+    copied = client.workouts[result.workout_id]
+    assert result.state == "verified"
+    assert copied["workoutName"] == "Grouped Copy"
+    assert copied["workoutSegments"][0]["workoutSteps"][0]["type"] == "RepeatGroupDTO"
+    assert copied["author"] == {"name": "manual owner"}
+    assert copied["unrelatedMetadata"] == {"keep": True}
+
+
+def test_regrouping_rejects_conflicting_per_set_provider_metadata_before_mutation():
+    remote = remote_grouped_plan(flat=True)
+    physical_steps = remote["workoutSegments"][0]["workoutSteps"]
+    physical_steps[0]["providerMetadata"] = {"source": "first"}
+    physical_steps[2]["providerMetadata"] = {"source": "second"}
+    client = FakeManagementClient({7: remote})
+
+    with pytest.raises(UnsupportedRemoteStructureError, match="metadata"):
+        update_workout(
+            client,
+            7,
+            grouped_plan(kg=90),
+            authorized=True,
+            journal_path=None,
+        )
+    assert client.update_calls == 0
 
 
 def test_update_rejects_unsupported_repeat_structure_without_mutation():

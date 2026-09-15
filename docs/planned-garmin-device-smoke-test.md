@@ -43,6 +43,22 @@ known before starting.
    template explicitly after recording the evidence. Verify each removal
    separately; never delete completed activities as cleanup.
 
+## Grouped-strength checks
+
+The user reported on 2026-09-14 that skipping the final rest prevented editing
+the last set's weight and repetitions because that option appears during rest.
+This is a user observation motivating the explicit final-rest policy, not a
+universal device-compatibility claim.
+
+For a fresh grouped strength plan, verify in Garmin Connect and on the target
+device that an N-set group (test N=2, 3, or another chosen value) displays the
+intended exercise, load, repetitions, and inter-set rests. Confirm that the
+group retains the final rest with `skipLastRestStep=false`, and during that
+final rest attempt the supported weight and repetition edits. Record whether
+each item was observed, not observed, or not testable, along with the device
+model and firmware. A server read-back or a successful preview cannot prove
+these device behaviors.
+
 Until this procedure succeeds on the target hardware, report only automated
 test and Garmin Connect read-back evidence. Actual watch/Edge compatibility,
 target display, indoor context, and physical rest/side behavior remain

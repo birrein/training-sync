@@ -28,6 +28,11 @@ from training_sync.garmin.planned_workouts import (
     GarminWorkoutProjection,
     project_planned_workout,
 )
+from training_sync.garmin.workout_steps import (
+    RepeatGroupLayout,
+    WorkoutStepDecodeError,
+    decode_workout_steps,
+)
 
 
 class PublicationError(RuntimeError):
@@ -128,6 +133,7 @@ def publish_workout(
                 client,
                 projection,
                 marker,
+                require_layout=bool(entry.get("strict_layout", False)),
             )
             if reconciliation.state == "uncertain":
                 _save_entry(
@@ -156,7 +162,12 @@ def publish_workout(
             )
 
         if workout_id is not None:
-            verification = _verify_remote_template(client, workout_id, projection)
+            verification = _verify_remote_template(
+                client,
+                workout_id,
+                projection,
+                require_layout=bool(entry.get("strict_layout", False)) if entry else False,
+            )
             if verification[0] is not True:
                 errors = verification[1]
                 _save_entry(
@@ -191,6 +202,7 @@ def publish_workout(
                 marker,
                 state="uploading",
                 desired_payload_hash=_payload_hash(payload),
+                strict_layout=True,
             )
             try:
                 response = _upload_workout(client, payload)
@@ -209,7 +221,12 @@ def publish_workout(
                     desired_payload_hash=_payload_hash(payload),
                 )
             except Exception as exc:
-                reconciliation = _reconcile_upload(client, projection, marker)
+                reconciliation = _reconcile_upload(
+                    client,
+                    projection,
+                    marker,
+                    require_layout=True,
+                )
                 if reconciliation.state == "verified":
                     workout_id = reconciliation.workout_id
                     reused = True
@@ -431,11 +448,17 @@ def build_publication_marker(workout: PlannedWorkout) -> str:
 def verify_saved_workout(
     projection: GarminWorkoutProjection,
     saved: Mapping[str, Any],
+    *,
+    require_layout: bool = True,
 ) -> tuple[bool, tuple[str, ...]]:
-    """Compare expected executable semantics with a Garmin read-back payload."""
+    """Compare expanded semantics and, for new writes, the requested layout."""
 
-    saved_steps = _extract_steps(saved)
     errors: list[str] = []
+    try:
+        decoded = decode_workout_steps(saved)
+    except WorkoutStepDecodeError as exc:
+        return False, (f"Garmin workout step tree is unsupported: {exc}",)
+    saved_steps = list(decoded.steps)
     if saved.get("workoutName") != projection.payload.get("workoutName"):
         errors.append("workoutName mismatch")
     if _nested_key(saved, "sportType", "sportTypeKey") != _nested_key(
@@ -451,6 +474,8 @@ def verify_saved_workout(
         zip(expected_steps, saved_steps), start=1
     ):
         errors.extend(_compare_step(index, expected, actual))
+    if require_layout:
+        errors.extend(_compare_repeat_layout(projection.repeat_groups, decoded.repeat_groups))
     return not errors, tuple(errors)
 
 
@@ -458,6 +483,8 @@ def _verify_remote_template(
     client: Any,
     workout_id: int | str,
     projection: GarminWorkoutProjection,
+    *,
+    require_layout: bool = True,
 ) -> tuple[bool, tuple[str, ...]]:
     try:
         saved = _get_workout(client, workout_id)
@@ -465,7 +492,49 @@ def _verify_remote_template(
         return False, (f"Garmin workout read-back failed: {_safe_error(exc)}",)
     if not isinstance(saved, Mapping):
         return False, ("Garmin workout read-back was not an object",)
-    return verify_saved_workout(projection, saved)
+    return verify_saved_workout(projection, saved, require_layout=require_layout)
+
+
+def _compare_repeat_layout(
+    expected: tuple[RepeatGroupLayout, ...],
+    actual: tuple[RepeatGroupLayout, ...],
+) -> list[str]:
+    """Compare the compact representation after expanded semantics match."""
+
+    if len(expected) != len(actual):
+        return [
+            "repeat group representation mismatch: "
+            f"expected {len(expected)} groups, saved {len(actual)}"
+        ]
+    errors: list[str] = []
+    for group_index, (expected_group, actual_group) in enumerate(
+        zip(expected, actual), start=1
+    ):
+        prefix = f"repeat group {group_index}"
+        if expected_group.start_index != actual_group.start_index:
+            errors.append(f"{prefix} position mismatch")
+        if expected_group.iterations != actual_group.iterations:
+            errors.append(
+                f"{prefix} iteration count mismatch: expected "
+                f"{expected_group.iterations}, saved {actual_group.iterations}"
+            )
+        if expected_group.skip_last_rest_step != actual_group.skip_last_rest_step:
+            errors.append(f"{prefix} skipLastRestStep mismatch")
+        if expected_group.group_type != actual_group.group_type:
+            errors.append(f"{prefix} type mismatch")
+        if expected_group.step_type_key != actual_group.step_type_key:
+            errors.append(f"{prefix} step type mismatch")
+        if len(expected_group.child_steps) != len(actual_group.child_steps):
+            errors.append(f"{prefix} child count mismatch")
+            continue
+        for child_index, (expected_child, actual_child) in enumerate(
+            zip(expected_group.child_steps, actual_group.child_steps), start=1
+        ):
+            for detail in _compare_step(
+                child_index, expected_child, actual_child
+            ):
+                errors.append(f"{prefix} child {child_index}: {detail}")
+    return errors
 
 
 def _compare_step(
@@ -581,6 +650,8 @@ def _reconcile_upload(
     client: Any,
     projection: GarminWorkoutProjection,
     marker: str,
+    *,
+    require_layout: bool = False,
 ) -> PublicationResult:
     try:
         candidates, incomplete = _list_workouts(client)
@@ -605,7 +676,7 @@ def _reconcile_upload(
                 saved = fetched
         except Exception:
             pass
-        if verify_saved_workout(projection, saved)[0]:
+        if verify_saved_workout(projection, saved, require_layout=require_layout)[0]:
             exact_ids.append(workout_id)
     if len(exact_ids) == 1 and not (incomplete and len(exact_ids) > 1):
         return PublicationResult(
@@ -648,18 +719,9 @@ def _result_with_reconciliation(
 
 
 def _extract_steps(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    segments = payload.get("workoutSegments")
-    if isinstance(segments, list):
-        steps: list[Mapping[str, Any]] = []
-        for segment in segments:
-            if isinstance(segment, Mapping) and isinstance(segment.get("workoutSteps"), list):
-                steps.extend(
-                    item for item in segment["workoutSteps"] if isinstance(item, Mapping)
-                )
-        return steps
-    if isinstance(payload.get("workoutSteps"), list):
-        return [item for item in payload["workoutSteps"] if isinstance(item, Mapping)]
-    return []
+    """Return the bounded expanded sequence from a supported step tree."""
+
+    return list(decode_workout_steps(payload).steps)
 
 
 def _nested_key(value: Mapping[str, Any], parent: str, key: str) -> Any:
@@ -745,6 +807,7 @@ def _save_entry(
     schedule_id: int | str | None = None,
     schedule_date: str | None = None,
     desired_payload_hash: str | None = None,
+    strict_layout: bool | None = None,
     error: str | None = None,
 ) -> None:
     existing = journal.get(key) or {}
@@ -764,6 +827,8 @@ def _save_entry(
         entry["schedule_date"] = schedule_date
     if desired_payload_hash is not None:
         entry["desired_payload_hash"] = desired_payload_hash
+    if strict_layout is not None:
+        entry["strict_layout"] = strict_layout
     if error is not None:
         entry["error"] = error
     else:
