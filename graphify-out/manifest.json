@@ -24,22 +24,22 @@
     "semantic_hash": "228959f701f5f4d8943653eada260d89"
   },
   "src/training_sync/cli.py": {
-    "mtime": 1785995143.3348138,
-    "seen": 1789276326.002793,
-    "ast_hash": "51c8512afc178afff6323a39dc38621c",
-    "semantic_hash": "51c8512afc178afff6323a39dc38621c"
+    "mtime": 1789360032.5676277,
+    "seen": 1789437361.341861,
+    "ast_hash": "5c130bd76bd5490aa4a5b1b3cb901548",
+    "semantic_hash": ""
   },
   "src/training_sync/config.py": {
-    "mtime": 1785506380.1101618,
-    "seen": 1789276326.002793,
-    "ast_hash": "291bdf70cd8403df085caed854bcd9c8",
-    "semantic_hash": "291bdf70cd8403df085caed854bcd9c8"
+    "mtime": 1789358587.3856115,
+    "seen": 1789437361.341861,
+    "ast_hash": "97184bdd340e24874149bbd0f06d52d9",
+    "semantic_hash": ""
   },
   "src/training_sync/domain/__init__.py": {
-    "mtime": 1785303486.6235843,
-    "seen": 1789276326.002794,
-    "ast_hash": "00a0bd2551d207a44646d7a91256b8a0",
-    "semantic_hash": "00a0bd2551d207a44646d7a91256b8a0"
+    "mtime": 1789360253.1677258,
+    "seen": 1789437361.341861,
+    "ast_hash": "30adf3a88a4e3676eea6d85bde0b8605",
+    "semantic_hash": ""
   },
   "src/training_sync/domain/activity_classification.py": {
     "mtime": 1785096603.6663907,
@@ -372,10 +372,10 @@
     "semantic_hash": "083ca7b0573f980aeb852e55e618b8b9"
   },
   "tests/test_training_sync_cli.py": {
-    "mtime": 1785995097.120173,
-    "seen": 1789276326.0028129,
-    "ast_hash": "a93859542339e0b055751e629b2213d1",
-    "semantic_hash": "a93859542339e0b055751e629b2213d1"
+    "mtime": 1789360047.8194919,
+    "seen": 1789437361.341887,
+    "ast_hash": "8a5c3e2f960318a8af3aac9d849b81f4",
+    "semantic_hash": ""
   },
   "tests/test_use_case_sync_day.py": {
     "mtime": 1785303821.1179602,
@@ -442,5 +442,881 @@
     "seen": 1789276326.002816,
     "ast_hash": "aa78fea0cfa21ce9ea4f40639bd7eea0",
     "semantic_hash": "aa78fea0cfa21ce9ea4f40639bd7eea0"
+  },
+  ".codex/hooks.json": {
+    "mtime": 1789275862.0033345,
+    "seen": 1789437361.341853,
+    "ast_hash": "005ac71c84af2cae38e255e2b9de2411",
+    "semantic_hash": ""
+  },
+  "examples/planned-cycling.json": {
+    "mtime": 1789359758.0733862,
+    "seen": 1789437361.341857,
+    "ast_hash": "55af58dac44937871a123adcc0249212",
+    "semantic_hash": ""
+  },
+  "examples/planned-running-power.json": {
+    "mtime": 1789359758.0735967,
+    "seen": 1789437361.3418581,
+    "ast_hash": "ea56852d4148a84b99ce9c8829573055",
+    "semantic_hash": ""
+  },
+  "examples/planned-strength.json": {
+    "mtime": 1789359758.0731778,
+    "seen": 1789437361.341859,
+    "ast_hash": "d608d9ace95d0fe32aacc012097ce771",
+    "semantic_hash": ""
+  },
+  "src/training_sync/domain/planned_workout.py": {
+    "mtime": 1789358619.5822175,
+    "seen": 1789437361.341863,
+    "ast_hash": "030e051c3189beb4d2c2a0efb54f4645",
+    "semantic_hash": ""
+  },
+  "src/training_sync/garmin/planned_workouts.py": {
+    "mtime": 1789360273.6560242,
+    "seen": 1789437361.341868,
+    "ast_hash": "9657ef24cac02dc099df87bd0db11032",
+    "semantic_hash": ""
+  },
+  "src/training_sync/renderers/planned_workout.py": {
+    "mtime": 1789358161.0904665,
+    "seen": 1789437361.341871,
+    "ast_hash": "045c0672156e0ed5a778ee0a71bb043e",
+    "semantic_hash": ""
+  },
+  "src/training_sync/use_cases/manage_planned_workouts.py": {
+    "mtime": 1789360281.468968,
+    "seen": 1789437361.3418722,
+    "ast_hash": "f9b299de8eb5a8a79252c372d6dcc557",
+    "semantic_hash": ""
+  },
+  "src/training_sync/use_cases/publish_workout.py": {
+    "mtime": 1789437352.2921538,
+    "seen": 1789437361.341873,
+    "ast_hash": "cf8af849359200a26505a6912a36d8cb",
+    "semantic_hash": ""
+  },
+  "tests/test_garmin_planned_workouts.py": {
+    "mtime": 1789359136.143222,
+    "seen": 1789437361.341881,
+    "ast_hash": "2320342bee5936ffe9f15045fe6e56f4",
+    "semantic_hash": ""
+  },
+  "tests/test_manage_planned_workouts.py": {
+    "mtime": 1789360151.2856429,
+    "seen": 1789437361.341883,
+    "ast_hash": "3f4bdf1d40c21b70db12358812d416b2",
+    "semantic_hash": ""
+  },
+  "tests/test_planned_boundaries.py": {
+    "mtime": 1789359878.3056772,
+    "seen": 1789437361.341884,
+    "ast_hash": "b1311a3499f4612a6c929c8af0db301f",
+    "semantic_hash": ""
+  },
+  "tests/test_planned_calendar.py": {
+    "mtime": 1789360116.6588342,
+    "seen": 1789437361.3418849,
+    "ast_hash": "fcd7007304cd8d9ece82ea9bc6d07e8c",
+    "semantic_hash": ""
+  },
+  "tests/test_planned_workout.py": {
+    "mtime": 1789357370.4489646,
+    "seen": 1789437361.3418849,
+    "ast_hash": "529c31906bd5c9a5e66b808f182f53f6",
+    "semantic_hash": ""
+  },
+  "tests/test_publish_workout.py": {
+    "mtime": 1789437341.396686,
+    "seen": 1789437361.341886,
+    "ast_hash": "9fae2cb0dc2877eabbd18a0552bf60ca",
+    "semantic_hash": ""
+  },
+  ".agents/skills/openspec-apply-change/SKILL.md": {
+    "mtime": 1789270906.2816153,
+    "seen": 1789437361.341892,
+    "ast_hash": "8acdd6572d9283e0121198faa85f1a4c",
+    "semantic_hash": ""
+  },
+  ".agents/skills/openspec-archive-change/SKILL.md": {
+    "mtime": 1789270906.282766,
+    "seen": 1789437361.3418932,
+    "ast_hash": "27b070ddd90e6e65e4bb0a544005c9f3",
+    "semantic_hash": ""
+  },
+  ".agents/skills/openspec-continue-change/SKILL.md": {
+    "mtime": 1789270906.281292,
+    "seen": 1789437361.3418932,
+    "ast_hash": "68ad9f6dcee84130a11fc4e0832265fd",
+    "semantic_hash": ""
+  },
+  ".agents/skills/openspec-explore/SKILL.md": {
+    "mtime": 1789270906.2803288,
+    "seen": 1789437361.3418932,
+    "ast_hash": "1e132d757e091b575658f8c96a747f73",
+    "semantic_hash": ""
+  },
+  ".agents/skills/openspec-ff-change/SKILL.md": {
+    "mtime": 1789270906.2821248,
+    "seen": 1789437361.341894,
+    "ast_hash": "6311ddb1aed05aa083e46ca6f290ce0c",
+    "semantic_hash": ""
+  },
+  ".agents/skills/openspec-new-change/SKILL.md": {
+    "mtime": 1789270906.280852,
+    "seen": 1789437361.341894,
+    "ast_hash": "f984fd6f339e40bc48df1b71bc005035",
+    "semantic_hash": ""
+  },
+  ".agents/skills/openspec-propose/SKILL.md": {
+    "mtime": 1789270906.2838194,
+    "seen": 1789437361.341894,
+    "ast_hash": "dbc982aedd2a2ad0dba2801834e191f2",
+    "semantic_hash": ""
+  },
+  ".agents/skills/openspec-sync-specs/SKILL.md": {
+    "mtime": 1789270906.2825317,
+    "seen": 1789437361.3418949,
+    "ast_hash": "46d3debf6b0499ab50c8034e3ccbdd21",
+    "semantic_hash": ""
+  },
+  ".agents/skills/openspec-update-change/SKILL.md": {
+    "mtime": 1789270906.2818975,
+    "seen": 1789437361.3418949,
+    "ast_hash": "806d39b001ec32017d356caa349ff476",
+    "semantic_hash": ""
+  },
+  ".agents/skills/openspec-verify-change/SKILL.md": {
+    "mtime": 1789270906.283205,
+    "seen": 1789437361.3418949,
+    "ast_hash": "bf1598a2103e2e4d0534e2050ab56ce5",
+    "semantic_hash": ""
+  },
+  ".codex/skills/graphify/SKILL.md": {
+    "mtime": 1789275862.0007071,
+    "seen": 1789437361.3418958,
+    "ast_hash": "212b55d95333d84e14262f8ec83faa2b",
+    "semantic_hash": ""
+  },
+  ".codex/skills/graphify/references/add-watch.md": {
+    "mtime": 1789273689.0739012,
+    "seen": 1789437361.3418958,
+    "ast_hash": "d59d027fe449f06aa03905a01184e779",
+    "semantic_hash": ""
+  },
+  ".codex/skills/graphify/references/exports.md": {
+    "mtime": 1789273689.0739648,
+    "seen": 1789437361.3418958,
+    "ast_hash": "9da2a2152e60a22f07f05fed5158f287",
+    "semantic_hash": ""
+  },
+  ".codex/skills/graphify/references/extraction-spec.md": {
+    "mtime": 1789273689.0740364,
+    "seen": 1789437361.341897,
+    "ast_hash": "bf895ec4d4e40f5f66f7d31c2a9bd4a7",
+    "semantic_hash": ""
+  },
+  ".codex/skills/graphify/references/github-and-merge.md": {
+    "mtime": 1789273689.074094,
+    "seen": 1789437361.341897,
+    "ast_hash": "cde13df085e4c492aeb7ba298a996d0d",
+    "semantic_hash": ""
+  },
+  ".codex/skills/graphify/references/hooks.md": {
+    "mtime": 1789273689.0741713,
+    "seen": 1789437361.341897,
+    "ast_hash": "3f545db6ce646650bb9de588f5512a27",
+    "semantic_hash": ""
+  },
+  ".codex/skills/graphify/references/query.md": {
+    "mtime": 1789273689.0742958,
+    "seen": 1789437361.341898,
+    "ast_hash": "3c46f8ad006874260614ed8657d02307",
+    "semantic_hash": ""
+  },
+  ".codex/skills/graphify/references/transcribe.md": {
+    "mtime": 1789273689.0743594,
+    "seen": 1789437361.341898,
+    "ast_hash": "67b6a5fa6c0974e18f60db9f8932fbd8",
+    "semantic_hash": ""
+  },
+  ".codex/skills/graphify/references/update.md": {
+    "mtime": 1789273689.0744886,
+    "seen": 1789437361.341898,
+    "ast_hash": "9378bd03d56baaf78bd738ab3848f142",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1789277241.690899,
+    "seen": 1789437361.341899,
+    "ast_hash": "acbde7fbdab1a2cd2d4e3ec06d87b062",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1789360059.999085,
+    "seen": 1789437361.341899,
+    "ast_hash": "f8f6a4dc586e3eecfcea0a715495d27a",
+    "semantic_hash": ""
+  },
+  "docs/planned-garmin-device-smoke-test.md": {
+    "mtime": 1789359869.3834684,
+    "seen": 1789437361.341899,
+    "ast_hash": "1af331b5ff6144c7677f3a25e2204e05",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-06-15-garmin-sync.md": {
+    "mtime": 1785096603.6587572,
+    "seen": 1789437361.3419,
+    "ast_hash": "107cf17cabca9d67e422a059b5267762",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-06-18-refactoring.md": {
+    "mtime": 1785096603.6589394,
+    "seen": 1789437361.3419,
+    "ast_hash": "18150e4ba994918517909c75f2061269",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-06-20-training-sync-weightxreps.md": {
+    "mtime": 1785096603.659088,
+    "seen": 1789437361.3419,
+    "ast_hash": "27bf2a34a8ae8c402e4ba7d3bd764af6",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-06-27-weightxreps-exercise-resolution.md": {
+    "mtime": 1785096603.6591885,
+    "seen": 1789437361.341901,
+    "ast_hash": "0814b25020512e95655e6703c02acad0",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-07-13-openspec-superpowers-integration.md": {
+    "mtime": 1785096603.6593027,
+    "seen": 1789437361.341901,
+    "ast_hash": "93748fc1fbff5bc5c0633a2f464d28ba",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-06-15-garmin-sync-python-design.md": {
+    "mtime": 1785096603.6594257,
+    "seen": 1789437361.341901,
+    "ast_hash": "4c4945774a69d5f7f71a1d177b8d624a",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-06-18-refactoring-design.md": {
+    "mtime": 1785096603.6595097,
+    "seen": 1789437361.341902,
+    "ast_hash": "3fe78a31c14188e8a51063b3d1e746b4",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-06-20-training-sync-weightxreps-design.md": {
+    "mtime": 1785096603.6597085,
+    "seen": 1789437361.341902,
+    "ast_hash": "5765b3aee6cb6ae75ae422813518ec60",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-06-22-weightxreps-exercise-resolution-design.md": {
+    "mtime": 1785096603.6599078,
+    "seen": 1789437361.341902,
+    "ast_hash": "c6f8f815ed65076106b608a22fb40e89",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-04-one-day-sync-cycling-design.md": {
+    "mtime": 1785096603.6600986,
+    "seen": 1789437361.3419032,
+    "ast_hash": "34bc6049fc7a35b5beab7f13306d8c65",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-13-openspec-superpowers-integration-design.md": {
+    "mtime": 1785096603.6602771,
+    "seen": 1789437361.3419032,
+    "ast_hash": "af8c5019fedfc5a94f65aae97827ca46",
+    "semantic_hash": ""
+  },
+  "openspec/changes/add-garmin-planned-workouts/.openspec.yaml": {
+    "mtime": 1789277970.0972333,
+    "seen": 1789437361.3419032,
+    "ast_hash": "023bd6a30a4a37ec1d0180ed76f93c32",
+    "semantic_hash": ""
+  },
+  "openspec/changes/add-garmin-planned-workouts/design.md": {
+    "mtime": 1789357286.1373158,
+    "seen": 1789437361.341904,
+    "ast_hash": "a0d1ef54e0a214645766f03fc3e0c191",
+    "semantic_hash": ""
+  },
+  "openspec/changes/add-garmin-planned-workouts/proposal.md": {
+    "mtime": 1789355486.0050223,
+    "seen": 1789437361.341904,
+    "ast_hash": "bd673a6c13360ea21e6b34379f247659",
+    "semantic_hash": ""
+  },
+  "openspec/changes/add-garmin-planned-workouts/specs/garmin-planned-workouts/spec.md": {
+    "mtime": 1789357286.1380634,
+    "seen": 1789437361.341904,
+    "ast_hash": "6b2280842d451b26dd3181fff8854b59",
+    "semantic_hash": ""
+  },
+  "openspec/changes/add-garmin-planned-workouts/tasks.md": {
+    "mtime": 1789359910.8106863,
+    "seen": 1789437361.3419049,
+    "ast_hash": "49dd2ba2cdf4bb23c01b977e20b54d82",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-14-add-one-day-multi-activity-sync/.openspec.yaml": {
+    "mtime": 1785096603.6605432,
+    "seen": 1789437361.3419049,
+    "ast_hash": "017d7d5e0e1efaf6d4558e0a5ab1fc33",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-14-add-one-day-multi-activity-sync/brainstorm.md": {
+    "mtime": 1785096603.6606665,
+    "seen": 1789437361.3419049,
+    "ast_hash": "75e0b9a2c71394e1a7409c16af500f05",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-14-add-one-day-multi-activity-sync/design.md": {
+    "mtime": 1785096603.6608074,
+    "seen": 1789437361.3419058,
+    "ast_hash": "68085c9774f1fe1a3313ff48103a9dfa",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-14-add-one-day-multi-activity-sync/plan.md": {
+    "mtime": 1785096603.6609,
+    "seen": 1789437361.3419058,
+    "ast_hash": "027e13b64db87b98bb01ec203cd80b83",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-14-add-one-day-multi-activity-sync/proposal.md": {
+    "mtime": 1785096603.6609797,
+    "seen": 1789437361.3419058,
+    "ast_hash": "4bf93aed7dc89baac29a26e20cc2de52",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-14-add-one-day-multi-activity-sync/retrospective.md": {
+    "mtime": 1785096603.6611483,
+    "seen": 1789437361.341907,
+    "ast_hash": "d707aea350f6810a3a9626e0d502645f",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-14-add-one-day-multi-activity-sync/specs/daily-multi-activity-sync/spec.md": {
+    "mtime": 1785096603.661293,
+    "seen": 1789437361.341907,
+    "ast_hash": "3380c359aa87633c0ba5d1dbe225e3df",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-14-add-one-day-multi-activity-sync/specs/weightxreps-cardio-sync/spec.md": {
+    "mtime": 1785096603.6614788,
+    "seen": 1789437361.341907,
+    "ast_hash": "385976a78b7c729a1c84519eac2a02cf",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-14-add-one-day-multi-activity-sync/tasks.md": {
+    "mtime": 1785096603.6615548,
+    "seen": 1789437361.341908,
+    "ast_hash": "116fb8b4a54dabc28f0e942a5de6c22b",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-14-add-one-day-multi-activity-sync/verify.md": {
+    "mtime": 1785096603.6617432,
+    "seen": 1789437361.341908,
+    "ast_hash": "85919b729c5ade15f9fa50f01ff30cf4",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-21-complete-training-sync-migration/.openspec.yaml": {
+    "mtime": 1785096603.6619139,
+    "seen": 1789437361.341908,
+    "ast_hash": "2095a54390accb548fae2548dcee20bd",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-21-complete-training-sync-migration/cutover.md": {
+    "mtime": 1785096603.6619697,
+    "seen": 1789437361.341909,
+    "ast_hash": "e9ff349caac787836183324a2be50fab",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-21-complete-training-sync-migration/design.md": {
+    "mtime": 1785096603.6621342,
+    "seen": 1789437361.341909,
+    "ast_hash": "ff0ee8c7e580d5f16543b4d64c32f289",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-21-complete-training-sync-migration/proposal.md": {
+    "mtime": 1785096603.6622114,
+    "seen": 1789437361.341909,
+    "ast_hash": "9199918171ce76c35409483a17a796e5",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-21-complete-training-sync-migration/specs/training-sync-project-identity/spec.md": {
+    "mtime": 1785096603.6624293,
+    "seen": 1789437361.3419101,
+    "ast_hash": "f49414f5a6e8c04862ea54921156f731",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-21-complete-training-sync-migration/tasks.md": {
+    "mtime": 1785096603.6625388,
+    "seen": 1789437361.3419101,
+    "ast_hash": "37f2b44379af1686d1958c1fa8089324",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-22-fix-weightxreps-full-catalog-lookup/.openspec.yaml": {
+    "mtime": 1785096603.6626513,
+    "seen": 1789437361.3419101,
+    "ast_hash": "736d25ae96017cfe91688117ab352666",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-22-fix-weightxreps-full-catalog-lookup/design.md": {
+    "mtime": 1785096603.6627707,
+    "seen": 1789437361.341911,
+    "ast_hash": "d3ea4aa57a1dc0e51d69fd83cd701579",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-22-fix-weightxreps-full-catalog-lookup/proposal.md": {
+    "mtime": 1785096603.6628706,
+    "seen": 1789437361.341911,
+    "ast_hash": "1fabd9328ae4dcd84189d4b5b3c8e697",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-22-fix-weightxreps-full-catalog-lookup/specs/weightxreps-cardio-sync/spec.md": {
+    "mtime": 1785096603.6630244,
+    "seen": 1789437361.341911,
+    "ast_hash": "c94474550b03b988427e1f89dc3b0738",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-22-fix-weightxreps-full-catalog-lookup/tasks.md": {
+    "mtime": 1785096603.6631186,
+    "seen": 1789437361.341912,
+    "ast_hash": "89fb69873dcecf7f9075ddc744f035ae",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-22-improve-weightxreps-graphql-errors/.openspec.yaml": {
+    "mtime": 1785096603.6632452,
+    "seen": 1789437361.341912,
+    "ast_hash": "736d25ae96017cfe91688117ab352666",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-22-improve-weightxreps-graphql-errors/design.md": {
+    "mtime": 1785096603.663312,
+    "seen": 1789437361.341912,
+    "ast_hash": "3134340c102377b2b9784990d206d106",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-22-improve-weightxreps-graphql-errors/proposal.md": {
+    "mtime": 1785096603.6633763,
+    "seen": 1789437361.341913,
+    "ast_hash": "5f1a83c3eba996bd39932ad20fe76964",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-22-improve-weightxreps-graphql-errors/specs/weightxreps-cardio-sync/spec.md": {
+    "mtime": 1785096603.6635628,
+    "seen": 1789437361.341913,
+    "ast_hash": "73ff8f20ca375e0aadf67a5f24c9e935",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-22-improve-weightxreps-graphql-errors/tasks.md": {
+    "mtime": 1785096603.6636426,
+    "seen": 1789437361.341913,
+    "ast_hash": "d43efc03ef59d1bac79fc360b5586ffd",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-add-canonical-activity-reconciliation/.openspec.yaml": {
+    "mtime": 1785129106.144566,
+    "seen": 1789437361.3419142,
+    "ast_hash": "bc32809d6ad38455aefe8b4b8510edd7",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-add-canonical-activity-reconciliation/design.md": {
+    "mtime": 1785129366.7250497,
+    "seen": 1789437361.3419142,
+    "ast_hash": "d6382154364edf1649069bf4fc1c1da5",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-add-canonical-activity-reconciliation/proposal.md": {
+    "mtime": 1785129558.1228657,
+    "seen": 1789437361.3419142,
+    "ast_hash": "6b6f76cd1c8cd2702d3fc55ef7f4f13b",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-add-canonical-activity-reconciliation/specs/canonical-training-model/spec.md": {
+    "mtime": 1785129366.7256165,
+    "seen": 1789437361.341915,
+    "ast_hash": "bdfea172c81940e2dcd3809e352ab0dc",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-add-canonical-activity-reconciliation/specs/intervals-activity-crud/spec.md": {
+    "mtime": 1785129366.7266462,
+    "seen": 1789437361.341915,
+    "ast_hash": "1da46fe78865de217a458e66285d81a7",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-add-canonical-activity-reconciliation/specs/scoped-activity-reconciliation/spec.md": {
+    "mtime": 1785129366.7260213,
+    "seen": 1789437361.341915,
+    "ast_hash": "930ea997371d8e180a7b2af061f82195",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-add-canonical-activity-reconciliation/tasks.md": {
+    "mtime": 1785306853.641058,
+    "seen": 1789437361.3419158,
+    "ast_hash": "2666468d7021471a584c9d4ff589ec96",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-centralize-local-configuration/.openspec.yaml": {
+    "mtime": 1785506380.1014345,
+    "seen": 1789437361.3419158,
+    "ast_hash": "d800819a3f91797f62ca412b62c8486f",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-centralize-local-configuration/brainstorm.md": {
+    "mtime": 1785506380.1016753,
+    "seen": 1789437361.3419158,
+    "ast_hash": "6979af34ad4b1b6ee525c824780e5b01",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-centralize-local-configuration/design.md": {
+    "mtime": 1785506380.1018577,
+    "seen": 1789437361.341917,
+    "ast_hash": "3efd8a8fec6c05a1ff3f1369101553ac",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-centralize-local-configuration/plan.md": {
+    "mtime": 1785506380.1026502,
+    "seen": 1789437361.341917,
+    "ast_hash": "17e3e41db6fafb31e1d1baa29d6ea99b",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-centralize-local-configuration/proposal.md": {
+    "mtime": 1785506380.102888,
+    "seen": 1789437361.341917,
+    "ast_hash": "f4782b7554601ee307977c2c0f4ea504",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-centralize-local-configuration/retrospective.md": {
+    "mtime": 1785506380.1031356,
+    "seen": 1789437361.341918,
+    "ast_hash": "e18afeb78f0f53f7e3c724d16e66008e",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-centralize-local-configuration/specs/local-configuration/spec.md": {
+    "mtime": 1785506380.1033003,
+    "seen": 1789437361.341918,
+    "ast_hash": "94a0e9b6275e0e459818334d1c75b867",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-centralize-local-configuration/tasks.md": {
+    "mtime": 1785506380.1034033,
+    "seen": 1789437361.341918,
+    "ast_hash": "4fcdc26bf4cab43e45626c95840e1f8f",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-centralize-local-configuration/verify.md": {
+    "mtime": 1785506380.1035185,
+    "seen": 1789437361.341919,
+    "ast_hash": "d72fab60ab6bba10d466bd2655deb235",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-direct-cli-install/.openspec.yaml": {
+    "mtime": 1785506380.103779,
+    "seen": 1789437361.341919,
+    "ast_hash": "7d44b7335700d6fb20c8540ffac21c67",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-direct-cli-install/design.md": {
+    "mtime": 1785506380.1039236,
+    "seen": 1789437361.34192,
+    "ast_hash": "1485e0498baaaa0b14b1ec6e718f3006",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-direct-cli-install/plan.md": {
+    "mtime": 1785506380.104126,
+    "seen": 1789437361.341921,
+    "ast_hash": "c6b2f1e9001312cf9e7fd548fc3b3ac6",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-direct-cli-install/proposal.md": {
+    "mtime": 1785506380.1046875,
+    "seen": 1789437361.341921,
+    "ast_hash": "a473efd0124da2d41d4bfb925ec4a693",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-direct-cli-install/retrospective.md": {
+    "mtime": 1785506380.1049573,
+    "seen": 1789437361.341921,
+    "ast_hash": "84edea90a1c2e0a99df06ccc98c38156",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-direct-cli-install/specs/direct-cli-install/spec.md": {
+    "mtime": 1785506380.1051588,
+    "seen": 1789437361.341922,
+    "ast_hash": "f6ae1ecadf0bf8ec77702d1b9efe1d7b",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-direct-cli-install/tasks.md": {
+    "mtime": 1785506380.1052802,
+    "seen": 1789437361.341922,
+    "ast_hash": "258ae0580bb5384f10094390dccaee72",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-direct-cli-install/verify.md": {
+    "mtime": 1785506380.1053975,
+    "seen": 1789437361.341922,
+    "ast_hash": "3203c033e580258e974436099edac8ab",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-migrate-to-uv/.openspec.yaml": {
+    "mtime": 1785506380.1057734,
+    "seen": 1789437361.341923,
+    "ast_hash": "389f50f36b4b4f18946275541bd33286",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-migrate-to-uv/brainstorm.md": {
+    "mtime": 1785506380.1060395,
+    "seen": 1789437361.341923,
+    "ast_hash": "a13cb806b55a06d46cdd04f9be0df468",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-migrate-to-uv/design.md": {
+    "mtime": 1785506380.1063764,
+    "seen": 1789437361.341923,
+    "ast_hash": "82e1d335959ebfb24658fa61ae4e7190",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-migrate-to-uv/plan.md": {
+    "mtime": 1785506380.1066015,
+    "seen": 1789437361.3419242,
+    "ast_hash": "16255f7916be2b30a267391e51ea3edf",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-migrate-to-uv/proposal.md": {
+    "mtime": 1785506380.107222,
+    "seen": 1789437361.3419242,
+    "ast_hash": "3b2fcb6fa2db70b05a6db4bb38d9ceda",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-migrate-to-uv/retrospective.md": {
+    "mtime": 1785506380.1074944,
+    "seen": 1789437361.3419242,
+    "ast_hash": "6d5c1ceb4c9f9b1562e19c469cd605e0",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-migrate-to-uv/specs/uv-development-workflow/spec.md": {
+    "mtime": 1785506380.1078281,
+    "seen": 1789437361.3419251,
+    "ast_hash": "72dbd930537c3ff09a01f9a2307e3a25",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-migrate-to-uv/tasks.md": {
+    "mtime": 1785506380.107951,
+    "seen": 1789437361.3419251,
+    "ast_hash": "0cc274bb2c39906235514e2cc938fba1",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-07-31-migrate-to-uv/verify.md": {
+    "mtime": 1785506380.1081219,
+    "seen": 1789437361.3419251,
+    "ast_hash": "99c8f98b93af5adac3c7a9cd1c60b542",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-09-13-fix-weightxreps-set-semantics-and-sync-link/.openspec.yaml": {
+    "mtime": 1785995731.7687356,
+    "seen": 1789437361.3419259,
+    "ast_hash": "0a96bfc1c9218995064f38f9e9b19caa",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-09-13-fix-weightxreps-set-semantics-and-sync-link/design.md": {
+    "mtime": 1785995838.054026,
+    "seen": 1789437361.3419259,
+    "ast_hash": "dfa5fe5f166175c93472ef06c7b25ffc",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-09-13-fix-weightxreps-set-semantics-and-sync-link/proposal.md": {
+    "mtime": 1785995782.7768967,
+    "seen": 1789437361.3419259,
+    "ast_hash": "9fe99cabea1bcb9d8743103aeff9ab63",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-09-13-fix-weightxreps-set-semantics-and-sync-link/specs/weightxreps-cardio-sync/spec.md": {
+    "mtime": 1785995923.4145474,
+    "seen": 1789437361.3419268,
+    "ast_hash": "0fda4e60fe753f994a03b751156c042f",
+    "semantic_hash": ""
+  },
+  "openspec/changes/archive/2026-09-13-fix-weightxreps-set-semantics-and-sync-link/tasks.md": {
+    "mtime": 1785995896.2366822,
+    "seen": 1789437361.3419268,
+    "ast_hash": "352c412dbef7e10573d7039dc17a0cdd",
+    "semantic_hash": ""
+  },
+  "openspec/changes/group-garmin-strength-sets/.openspec.yaml": {
+    "mtime": 1789433301.1665027,
+    "seen": 1789437361.3419268,
+    "ast_hash": "331f99705d6292ffe772f964ade7dcb1",
+    "semantic_hash": ""
+  },
+  "openspec/changes/group-garmin-strength-sets/design.md": {
+    "mtime": 1789433398.1730247,
+    "seen": 1789437361.341928,
+    "ast_hash": "656b95979060288169039fbb32370de5",
+    "semantic_hash": ""
+  },
+  "openspec/changes/group-garmin-strength-sets/proposal.md": {
+    "mtime": 1789433328.597212,
+    "seen": 1789437361.341928,
+    "ast_hash": "d95932668ad663b1402e9268180061da",
+    "semantic_hash": ""
+  },
+  "openspec/changes/group-garmin-strength-sets/specs/garmin-strength-set-grouping/spec.md": {
+    "mtime": 1789433398.172825,
+    "seen": 1789437361.341928,
+    "ast_hash": "fb05f778558dd88c0575436cf768c760",
+    "semantic_hash": ""
+  },
+  "openspec/changes/group-garmin-strength-sets/tasks.md": {
+    "mtime": 1789433426.2340565,
+    "seen": 1789437361.341929,
+    "ast_hash": "c15a018064786c611e85b5840aaa45fb",
+    "semantic_hash": ""
+  },
+  "openspec/config.yaml": {
+    "mtime": 1785096603.663719,
+    "seen": 1789437361.341929,
+    "ast_hash": "5c1af6022b0accd69d5a45bdff8b3ea9",
+    "semantic_hash": ""
+  },
+  "openspec/schemas/superpowers-bridge/README.md": {
+    "mtime": 1785096603.6639743,
+    "seen": 1789437361.341929,
+    "ast_hash": "b8f251d365e6b18082a726548d8bd6be",
+    "semantic_hash": ""
+  },
+  "openspec/schemas/superpowers-bridge/README.zh-TW.md": {
+    "mtime": 1785096603.6641293,
+    "seen": 1789437361.34193,
+    "ast_hash": "90e541b6ab4fe1a947d1c9d6ec05956a",
+    "semantic_hash": ""
+  },
+  "openspec/schemas/superpowers-bridge/UPSTREAM.md": {
+    "mtime": 1785096603.664223,
+    "seen": 1789437361.34193,
+    "ast_hash": "2de0c1bb552d29e5072e6514a5942df9",
+    "semantic_hash": ""
+  },
+  "openspec/schemas/superpowers-bridge/schema.yaml": {
+    "mtime": 1785096603.6643689,
+    "seen": 1789437361.34193,
+    "ast_hash": "d200737a6e962ecbb5539a8340233994",
+    "semantic_hash": ""
+  },
+  "openspec/schemas/superpowers-bridge/templates/adopters/CLAUDE.md.fragment.md": {
+    "mtime": 1785096603.6646414,
+    "seen": 1789437361.341931,
+    "ast_hash": "d1fb51c4df1a9c585326f4de424e15a5",
+    "semantic_hash": ""
+  },
+  "openspec/schemas/superpowers-bridge/templates/adopters/CLAUDE.md.fragment.zh-TW.md": {
+    "mtime": 1785096603.6647236,
+    "seen": 1789437361.341931,
+    "ast_hash": "18d8a5bfd5e7101b8a4a19eb853c67e2",
+    "semantic_hash": ""
+  },
+  "openspec/schemas/superpowers-bridge/templates/brainstorm.md": {
+    "mtime": 1785096603.6647906,
+    "seen": 1789437361.341931,
+    "ast_hash": "f036cb9f05f9777aa46bb5e5052164dc",
+    "semantic_hash": ""
+  },
+  "openspec/schemas/superpowers-bridge/templates/design.md": {
+    "mtime": 1785096603.6648462,
+    "seen": 1789437361.341932,
+    "ast_hash": "52ef87e1e2618cda904649a082b09ad2",
+    "semantic_hash": ""
+  },
+  "openspec/schemas/superpowers-bridge/templates/plan.md": {
+    "mtime": 1785096603.6649277,
+    "seen": 1789437361.341932,
+    "ast_hash": "c47c5bc0168eb0b546dd0c5bbd4acbed",
+    "semantic_hash": ""
+  },
+  "openspec/schemas/superpowers-bridge/templates/proposal.md": {
+    "mtime": 1785096603.6649976,
+    "seen": 1789437361.341932,
+    "ast_hash": "0418a9976e7013a26f5195fc001391c1",
+    "semantic_hash": ""
+  },
+  "openspec/schemas/superpowers-bridge/templates/retrospective.md": {
+    "mtime": 1785096603.665112,
+    "seen": 1789437361.341932,
+    "ast_hash": "c970a86145c66b9095a31487ee4ed127",
+    "semantic_hash": ""
+  },
+  "openspec/schemas/superpowers-bridge/templates/spec.md": {
+    "mtime": 1785096603.665208,
+    "seen": 1789437361.341933,
+    "ast_hash": "a2f4faa6d7ba62616213050f8b201e3b",
+    "semantic_hash": ""
+  },
+  "openspec/schemas/superpowers-bridge/templates/tasks.md": {
+    "mtime": 1785096603.6652656,
+    "seen": 1789437361.341933,
+    "ast_hash": "c84ffb65fe5d92c5e94c1dced1e6bd1d",
+    "semantic_hash": ""
+  },
+  "openspec/schemas/superpowers-bridge/templates/verify.md": {
+    "mtime": 1785096603.6653235,
+    "seen": 1789437361.341933,
+    "ast_hash": "a27a5ecf8400cbcaedc57c0ca0f33171",
+    "semantic_hash": ""
+  },
+  "openspec/specs/canonical-training-model/spec.md": {
+    "mtime": 1785470538.241416,
+    "seen": 1789437361.341934,
+    "ast_hash": "d8e2b3c85060a6a9fc7317dc2b11b0cc",
+    "semantic_hash": ""
+  },
+  "openspec/specs/daily-multi-activity-sync/spec.md": {
+    "mtime": 1785096603.665485,
+    "seen": 1789437361.341934,
+    "ast_hash": "2296178394ab1cdb4eb157b827c9e8de",
+    "semantic_hash": ""
+  },
+  "openspec/specs/direct-cli-install/spec.md": {
+    "mtime": 1785506380.1083,
+    "seen": 1789437361.341934,
+    "ast_hash": "3c58fd9e0987b64ebfa43db763a02ea6",
+    "semantic_hash": ""
+  },
+  "openspec/specs/intervals-activity-crud/spec.md": {
+    "mtime": 1785470538.2419884,
+    "seen": 1789437361.3419352,
+    "ast_hash": "2703f59ff97b9d0fcf685db7000bded9",
+    "semantic_hash": ""
+  },
+  "openspec/specs/local-configuration/spec.md": {
+    "mtime": 1785506380.108454,
+    "seen": 1789437361.3419352,
+    "ast_hash": "b8912189d352f9c4e5c5f7c32b838d8e",
+    "semantic_hash": ""
+  },
+  "openspec/specs/scoped-activity-reconciliation/spec.md": {
+    "mtime": 1785470538.2422726,
+    "seen": 1789437361.3419352,
+    "ast_hash": "1c8ef24d34ba6e4b7f747648c581765e",
+    "semantic_hash": ""
+  },
+  "openspec/specs/training-sync-project-identity/spec.md": {
+    "mtime": 1785096603.6656466,
+    "seen": 1789437361.341936,
+    "ast_hash": "b231f78d31d5848735e8297d69b20b33",
+    "semantic_hash": ""
+  },
+  "openspec/specs/uv-development-workflow/spec.md": {
+    "mtime": 1785506380.1086185,
+    "seen": 1789437361.341936,
+    "ast_hash": "19f11cdf365eb0a2d7aee4f7799d6cfc",
+    "semantic_hash": ""
+  },
+  "openspec/specs/weightxreps-cardio-sync/spec.md": {
+    "mtime": 1789272196.69594,
+    "seen": 1789437361.341936,
+    "ast_hash": "81e0419f3ca849e36c7a9e10ebd8ee73",
+    "semantic_hash": ""
   }
 }
