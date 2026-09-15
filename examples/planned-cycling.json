@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "key": "indoor-bike-intervals-2026-09-13",
+  "name": "Indoor Bike Intervals",
+  "sport": "cycling",
+  "context": "indoor",
+  "blocks": [
+    {
+      "role": "warmup",
+      "steps": [
+        {"termination": {"until": "time", "seconds": 600}}
+      ]
+    },
+    {
+      "role": "work",
+      "repeat": 4,
+      "steps": [
+        {
+          "termination": {"until": "time", "seconds": 180},
+          "target": {"kind": "power", "watts": {"min": 200, "max": 220}}
+        },
+        {
+          "role": "recovery",
+          "termination": {"until": "time", "seconds": 120},
+          "target": {"kind": "cadence", "rpm": {"min": 85, "max": 95}}
+        }
+      ]
+    },
+    {
+      "role": "cooldown",
+      "steps": [
+        {"termination": {"until": "time", "seconds": 300}}
+      ]
+    }
+  ]
+}

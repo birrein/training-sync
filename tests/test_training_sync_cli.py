@@ -1,3 +1,5 @@
+import io
+import json
 import sys
 
 import pytest
@@ -645,3 +647,151 @@ def test_training_sync_top_level_help_shows_command_groups(monkeypatch, capsys):
     assert "garmin" in output
     assert "weightxreps" in output
     assert "sync" in output
+
+
+def planned_json(name="CLI Plan"):
+    return {
+        "schema_version": 1,
+        "key": "cli-plan",
+        "name": name,
+        "sport": "strength_training",
+        "exercises": [
+            {
+                "name": "Squat",
+                "sets": [{"reps": 5, "load": {"kind": "bodyweight"}}],
+                "rest_between_sets": None,
+                "rest_after_exercise": None,
+            }
+        ],
+    }
+
+
+def test_planned_workout_preview_is_offline_and_does_not_need_vault_or_garmin(
+    monkeypatch, tmp_path, capsys
+):
+    json_file = tmp_path / "plan.json"
+    json_file.write_text(json.dumps(planned_json()), encoding="utf-8")
+    monkeypatch.setattr(cli, "get_client", lambda: pytest.fail("preview must not authenticate"))
+
+    cli.main(["garmin", "workout", "preview", str(json_file)])
+
+    output = capsys.readouterr().out
+    assert "CLI Plan" in output
+    assert "bodyweight" in output
+
+
+def test_planned_workout_preview_has_file_and_stdin_parity(monkeypatch, tmp_path, capsys):
+    json_file = tmp_path / "plan.json"
+    raw = json.dumps(planned_json())
+    json_file.write_text(raw, encoding="utf-8")
+
+    cli.main(["garmin", "workout", "preview", str(json_file)])
+    from_file = capsys.readouterr().out
+    monkeypatch.setattr(cli.sys, "stdin", io.StringIO(raw))
+    cli.main(["garmin", "workout", "preview", "-"])
+    from_stdin = capsys.readouterr().out
+
+    assert from_file == from_stdin
+
+
+def test_planned_workout_create_only_authenticates_with_yes(monkeypatch, tmp_path, capsys):
+    json_file = tmp_path / "plan.json"
+    json_file.write_text(json.dumps(planned_json()), encoding="utf-8")
+    calls = []
+
+    class Client:
+        pass
+
+    monkeypatch.setattr(cli, "get_client", lambda: calls.append("auth") or Client())
+    monkeypatch.setattr(
+        cli,
+        "publish_workout",
+        lambda client, plan, **kwargs: calls.append((client, plan.name, kwargs))
+        or type("Result", (), {"to_dict": lambda self: {"state": "verified"}})(),
+    )
+
+    cli.main(["garmin", "workout", "create", str(json_file)])
+    assert calls == []
+    assert "CLI Plan" in capsys.readouterr().out
+
+    cli.main(["garmin", "workout", "create", str(json_file), "--date", "2026-09-13", "--yes"])
+    assert calls[0] == "auth"
+    assert calls[1][2] == {"authorized": True, "schedule_date": "2026-09-13"}
+    assert '"state": "verified"' in capsys.readouterr().out
+
+
+def test_planned_workout_cli_wires_crud_and_calendar_commands(monkeypatch, tmp_path, capsys):
+    json_file = tmp_path / "plan.json"
+    json_file.write_text(json.dumps(planned_json()), encoding="utf-8")
+    calls = []
+
+    monkeypatch.setattr(cli, "get_client", lambda: "client")
+    monkeypatch.setattr(cli, "read_workout", lambda client, workout_id: {"workoutId": workout_id})
+    monkeypatch.setattr(cli, "list_workouts", lambda client, **kwargs: type("I", (), {"to_dict": lambda self: {"items": []}})())
+    monkeypatch.setattr(cli, "update_workout", lambda *args, **kwargs: calls.append("update") or type("R", (), {"to_dict": lambda self: {"state": "verified"}})())
+    monkeypatch.setattr(cli, "duplicate_workout", lambda *args, **kwargs: calls.append("duplicate") or type("R", (), {"to_dict": lambda self: {"state": "verified"}})())
+    monkeypatch.setattr(cli, "delete_workout", lambda *args, **kwargs: calls.append("delete") or type("R", (), {"to_dict": lambda self: {"state": "verified"}})())
+    monkeypatch.setattr(cli, "list_calendar", lambda *args, **kwargs: type("I", (), {"to_dict": lambda self: {"items": []}})())
+    monkeypatch.setattr(cli, "schedule_calendar_workout", lambda *args, **kwargs: calls.append("schedule") or type("R", (), {"to_dict": lambda self: {"state": "verified"}})())
+    monkeypatch.setattr(cli, "move_calendar_workout", lambda *args, **kwargs: calls.append("move") or type("R", (), {"to_dict": lambda self: {"state": "verified"}})())
+    monkeypatch.setattr(cli, "remove_calendar_workout", lambda *args, **kwargs: calls.append("remove") or type("R", (), {"to_dict": lambda self: {"state": "verified"}})())
+    monkeypatch.setattr(cli, "replace_calendar_workout", lambda *args, **kwargs: calls.append("replace") or type("R", (), {"to_dict": lambda self: {"state": "verified"}})())
+
+    cli.main(["garmin", "workout", "show", "7"])
+    cli.main(["garmin", "workout", "list"])
+    cli.main(["garmin", "workout", "update", "7", str(json_file), "--yes"])
+    cli.main(["garmin", "workout", "duplicate", "7", "--name", "Copy", "--yes"])
+    cli.main(["garmin", "workout", "delete", "7", "--yes"])
+    cli.main(["garmin", "calendar", "list", "--from", "2026-09-13", "--to", "2026-09-13"])
+    cli.main(["garmin", "calendar", "schedule", "7", "--date", "2026-09-13", "--yes"])
+    cli.main(["garmin", "calendar", "move", "900", "--date", "2026-09-14", "--yes"])
+    cli.main(["garmin", "calendar", "remove", "900", "--yes"])
+    cli.main(["garmin", "calendar", "replace", "900", str(json_file), "--yes"])
+
+    assert calls == ["update", "duplicate", "delete", "schedule", "move", "remove", "replace"]
+    assert capsys.readouterr().out.count('"state": "verified"') == 7
+
+
+def test_planned_workout_cli_reports_nonzero_failure_without_claiming_success(
+    monkeypatch, tmp_path, capsys
+):
+    json_file = tmp_path / "plan.json"
+    json_file.write_text(json.dumps(planned_json()), encoding="utf-8")
+    monkeypatch.setattr(cli, "get_client", lambda: "client")
+    monkeypatch.setattr(
+        cli,
+        "publish_workout",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("verification failed")),
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["garmin", "workout", "create", str(json_file), "--yes"])
+
+    assert exc.value.code == 2
+    assert "verification failed" in capsys.readouterr().err
+
+
+def test_planned_workout_cli_returns_nonzero_for_partial_lifecycle_result(
+    monkeypatch, tmp_path, capsys
+):
+    json_file = tmp_path / "plan.json"
+    json_file.write_text(json.dumps(planned_json()), encoding="utf-8")
+    monkeypatch.setattr(cli, "get_client", lambda: "client")
+    monkeypatch.setattr(
+        cli,
+        "publish_workout",
+        lambda *args, **kwargs: type(
+            "Result",
+            (),
+            {
+                "state": "partial",
+                "to_dict": lambda self: {"state": "partial"},
+            },
+        )(),
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["garmin", "workout", "create", str(json_file), "--yes"])
+
+    assert exc.value.code == 2
+    assert '"state": "partial"' in capsys.readouterr().out

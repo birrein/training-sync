@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "key": "lower-body-2-2026-09-13",
+  "name": "Lower Body 2",
+  "sport": "strength_training",
+  "warmup": {
+    "until": "lap",
+    "description": "8-10 min; advance manually"
+  },
+  "exercises": [
+    {
+      "name": "Romanian Deadlift",
+      "sets": [
+        {"reps": 10, "load": {"kind": "mass", "kg": 83, "basis": "total"}},
+        {"reps": 10, "load": {"kind": "mass", "kg": 83, "basis": "total"}},
+        {"reps": 10, "load": {"kind": "mass", "kg": 83, "basis": "total"}}
+      ],
+      "rest_between_sets": {"until": "time", "seconds": 165},
+      "rest_after_exercise": {"until": "time", "seconds": 165}
+    },
+    {
+      "name": "Dumbbell Lateral Raise",
+      "sets": [
+        {"reps": 15, "load": {"kind": "mass", "kg": 12.5, "basis": "per_hand"}},
+        {"reps": 15, "load": {"kind": "mass", "kg": 12.5, "basis": "per_hand"}}
+      ],
+      "rest_between_sets": {"until": "time", "seconds": 75},
+      "rest_after_exercise": null
+    }
+  ]
+}

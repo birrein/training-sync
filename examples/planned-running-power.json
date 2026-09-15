@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "key": "running-power-2026-09-13",
+  "name": "Running Power Intervals",
+  "sport": "running",
+  "context": "outdoor",
+  "blocks": [
+    {
+      "role": "warmup",
+      "steps": [
+        {"termination": {"until": "time", "seconds": 600}}
+      ]
+    },
+    {
+      "role": "work",
+      "repeat": 5,
+      "steps": [
+        {
+          "termination": {"until": "time", "seconds": 180},
+          "target": {"kind": "power", "watts": {"min": 250, "max": 270}}
+        },
+        {"role": "recovery", "termination": {"until": "time", "seconds": 120}}
+      ]
+    },
+    {
+      "role": "cooldown",
+      "steps": [
+        {"termination": {"until": "time", "seconds": 300}}
+      ]
+    }
+  ]
+}

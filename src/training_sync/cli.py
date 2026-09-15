@@ -21,11 +21,26 @@ from training_sync.config import (
     weightxreps_exercise_mapping_path,
     weightxreps_token_path,
 )
+from training_sync.domain.planned_workout import planned_workout_from_dict
 from training_sync.intervals.client import IntervalsClient, IntervalsError
 from training_sync.garmin.auth import get_client
 from training_sync.garmin.fetch import fetch_and_print_activities
 from training_sync.garmin.import_strength import parse_workout, push_workout
+from training_sync.garmin.planned_workouts import project_planned_workout
 from training_sync.garmin.weight import print_weight_tag
+from training_sync.use_cases.manage_planned_workouts import (
+    delete_workout,
+    duplicate_workout,
+    list_calendar,
+    list_workouts,
+    move_calendar_workout,
+    read_workout,
+    remove_calendar_workout,
+    replace_calendar_workout,
+    schedule_calendar_workout,
+    update_workout,
+)
+from training_sync.use_cases.publish_workout import publish_workout
 from training_sync.use_cases.sync_day import SyncDependencies, sync_day
 from training_sync.use_cases.weightxreps_preview import preview_weightxreps_day_from_vault
 from training_sync.use_cases.weightxreps_push import push_weightxreps_day
@@ -91,6 +106,56 @@ def _add_modern_subcommands(parser: argparse.ArgumentParser) -> None:
 
     garmin_import = garmin_subparsers.add_parser("import-strength", help="Import strength JSON to Garmin")
     garmin_import.add_argument("json_file")
+
+    workout = garmin_subparsers.add_parser("workout", help="Manage planned Garmin workout templates")
+    workout_subparsers = workout.add_subparsers(dest="workout_command")
+    workout_preview = workout_subparsers.add_parser("preview", help="Preview a planned workout offline")
+    workout_preview.add_argument("json_file")
+    workout_create = workout_subparsers.add_parser("create", help="Create and optionally schedule a workout")
+    workout_create.add_argument("json_file")
+    workout_create.add_argument("--date", dest="schedule_date", type=_iso_date)
+    workout_create.add_argument("--yes", action="store_true")
+    workout_list = workout_subparsers.add_parser("list", help="List workout templates")
+    workout_list.add_argument("--page-size", type=int, default=100)
+    workout_list.add_argument("--max-pages", type=int, default=10)
+    workout_show = workout_subparsers.add_parser("show", help="Show one exact workout template")
+    workout_show.add_argument("workout_id")
+    workout_update = workout_subparsers.add_parser("update", help="Update one shared workout template")
+    workout_update.add_argument("workout_id")
+    workout_update.add_argument("json_file")
+    workout_update.add_argument("--yes", action="store_true")
+    workout_duplicate = workout_subparsers.add_parser("duplicate", help="Duplicate one workout template")
+    workout_duplicate.add_argument("workout_id")
+    workout_duplicate.add_argument("--name", required=True)
+    workout_duplicate.add_argument("--yes", action="store_true")
+    workout_delete = workout_subparsers.add_parser("delete", help="Delete one unreferenced workout template")
+    workout_delete.add_argument("workout_id")
+    workout_delete.add_argument("--yes", action="store_true")
+    workout_schedule = workout_subparsers.add_parser("schedule", help="Schedule one workout template")
+    workout_schedule.add_argument("workout_id")
+    workout_schedule.add_argument("--date", dest="schedule_date", required=True, type=_iso_date)
+    workout_schedule.add_argument("--yes", action="store_true")
+
+    calendar = garmin_subparsers.add_parser("calendar", help="Manage planned workout calendar occurrences")
+    calendar_subparsers = calendar.add_subparsers(dest="calendar_command")
+    calendar_list_parser = calendar_subparsers.add_parser("list", help="List calendar occurrences in a date range")
+    calendar_list_parser.add_argument("--from", dest="from_date", required=True, type=_iso_date)
+    calendar_list_parser.add_argument("--to", dest="to_date", required=True, type=_iso_date)
+    calendar_schedule = calendar_subparsers.add_parser("schedule", help="Schedule a template on a date")
+    calendar_schedule.add_argument("workout_id")
+    calendar_schedule.add_argument("--date", dest="schedule_date", required=True, type=_iso_date)
+    calendar_schedule.add_argument("--yes", action="store_true")
+    calendar_move = calendar_subparsers.add_parser("move", help="Move one exact occurrence")
+    calendar_move.add_argument("schedule_id")
+    calendar_move.add_argument("--date", dest="schedule_date", required=True, type=_iso_date)
+    calendar_move.add_argument("--yes", action="store_true")
+    calendar_remove = calendar_subparsers.add_parser("remove", help="Remove one exact occurrence")
+    calendar_remove.add_argument("schedule_id")
+    calendar_remove.add_argument("--yes", action="store_true")
+    calendar_replace = calendar_subparsers.add_parser("replace", help="Replace one occurrence with a date-specific variant")
+    calendar_replace.add_argument("schedule_id")
+    calendar_replace.add_argument("json_file")
+    calendar_replace.add_argument("--yes", action="store_true")
 
     weightxreps = subparsers.add_parser("weightxreps", help="Weight x Reps commands")
     weightxreps_subparsers = weightxreps.add_subparsers(dest="weightxreps_command")
@@ -185,6 +250,10 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
     if getattr(args, "command", None) == "garmin" and args.garmin_command == "import-strength":
         client = get_client()
         _push_json_argument(client, args.json_file)
+        return
+
+    if getattr(args, "command", None) == "garmin" and args.garmin_command in {"workout", "calendar"}:
+        planned_workout_cli(args)
         return
 
     if getattr(args, "command", None) == "weightxreps" and args.weightxreps_command == "preview":
@@ -290,6 +359,160 @@ def _iso_date(value: str) -> str:
 
 def _program_name() -> str:
     return os.path.basename(sys.argv[0]) or "training-sync"
+
+
+def planned_workout_cli(args: argparse.Namespace) -> None:
+    """Dispatch planned workout commands with preview-first semantics."""
+    try:
+        if args.garmin_command == "workout":
+            _planned_template_cli(args)
+        else:
+            _planned_calendar_cli(args)
+    except SystemExit:
+        raise
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+
+
+def _planned_template_cli(args: argparse.Namespace) -> None:
+    command = args.workout_command
+    if command in {"preview", "create", "update", "replace"}:
+        planned = _load_planned_workout_argument(args.json_file)
+    if command == "preview":
+        print(project_planned_workout(planned).preview)
+        return
+    if command == "create":
+        if not args.yes:
+            print(json.dumps({
+                "status": "preview",
+                "schedule_date": getattr(args, "schedule_date", None),
+                "preview": project_planned_workout(planned).preview,
+            }, ensure_ascii=False, indent=2))
+            return
+        result = publish_workout(
+            get_client(),
+            planned,
+            authorized=True,
+            **({"schedule_date": args.schedule_date} if args.schedule_date else {}),
+        )
+        _print_planned_result(result)
+        return
+    if command == "list":
+        _print_structured(
+            list_workouts(get_client(), page_size=args.page_size, max_pages=args.max_pages)
+        )
+        return
+    if command == "show":
+        _print_structured(read_workout(get_client(), args.workout_id))
+        return
+    if command == "update":
+        _print_planned_result(
+            update_workout(
+                get_client(), args.workout_id, planned, authorized=args.yes
+            )
+        )
+        return
+    if command == "duplicate":
+        _print_planned_result(
+            duplicate_workout(
+                get_client(), args.workout_id, name=args.name, authorized=args.yes
+            )
+        )
+        return
+    if command == "delete":
+        _print_planned_result(
+            delete_workout(get_client(), args.workout_id, authorized=args.yes)
+        )
+        return
+    if command == "schedule":
+        _print_planned_result(
+            schedule_calendar_workout(
+                get_client(),
+                args.workout_id,
+                args.schedule_date,
+                authorized=args.yes,
+            )
+        )
+        return
+    raise ValueError("Garmin workout command is required")
+
+
+def _planned_calendar_cli(args: argparse.Namespace) -> None:
+    command = args.calendar_command
+    client = get_client()
+    if command == "list":
+        _print_structured(list_calendar(client, args.from_date, args.to_date))
+        return
+    if command == "schedule":
+        _print_planned_result(
+            schedule_calendar_workout(
+                client,
+                args.workout_id,
+                args.schedule_date,
+                authorized=args.yes,
+            )
+        )
+        return
+    if command == "move":
+        _print_planned_result(
+            move_calendar_workout(
+                client,
+                args.schedule_id,
+                args.schedule_date,
+                authorized=args.yes,
+            )
+        )
+        return
+    if command == "remove":
+        _print_planned_result(
+            remove_calendar_workout(client, args.schedule_id, authorized=args.yes)
+        )
+        return
+    if command == "replace":
+        planned = _load_planned_workout_argument(args.json_file)
+        _print_planned_result(
+            replace_calendar_workout(
+                client,
+                args.schedule_id,
+                planned,
+                authorized=args.yes,
+            )
+        )
+        return
+    raise ValueError("Garmin calendar command is required")
+
+
+def _load_planned_workout_argument(json_arg: str):
+    if json_arg == "-":
+        raw = sys.stdin.read()
+    else:
+        raw = Path(json_arg).read_text(encoding="utf-8")
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid planned workout JSON: {exc}") from exc
+    return planned_workout_from_dict(data)
+
+
+def _print_structured(value: object) -> None:
+    to_dict = getattr(value, "to_dict", None)
+    if callable(to_dict):
+        value = to_dict()
+    else:
+        try:
+            value = asdict(value)
+        except TypeError:
+            pass
+    print(json.dumps(value, ensure_ascii=False, indent=2, default=str))
+
+
+def _print_planned_result(value: object) -> None:
+    """Print a lifecycle result and use a nonzero exit for non-success states."""
+    _print_structured(value)
+    state = getattr(value, "state", None)
+    if state in {"partial", "uncertain", "verification_failed", "failed", "conflict"}:
+        raise SystemExit(2)
 
 
 def _push_json_argument(client, json_arg: str) -> None:

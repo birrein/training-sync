@@ -7,7 +7,9 @@ Currently supports:
 2. **Pulling (Fetching)** your Garmin activities (Running, Cycling, etc.) for a given date formatted for Markdown vaults (like Obsidian).
 3. **Previewing and pushing** Weight x Reps training days from Obsidian daily notes.
 4. **Reconciling one complete day** from Garmin into an existing Obsidian daily note and Weight x Reps.
-5. **Reading and explicitly managing** Intervals.icu activity replicas.
+5. **Preparing, verifying, and scheduling** Garmin planned strength, cycling,
+   and running workouts from source-independent JSON.
+6. **Reading and explicitly managing** Intervals.icu activity replicas.
 
 ## Canonical activity safety
 
@@ -245,7 +247,68 @@ partial sync. Review that error before retrying. The integrated sync does not
 create unknown Weight x Reps exercises automatically: unresolved mappings stop
 the preflight before either destination is changed.
 
-### 5. Weight x Reps
+### 5. Planned Garmin workouts
+
+Chat, a Fitbod screenshot, or a daily note is an input for the assistant, not a
+CLI parser contract. The assistant first turns the prescription into versioned
+JSON, resolves any genuinely missing choices, and preserves optional provenance
+only as local metadata. The JSON is independent of the vault and can be
+previewed offline:
+
+```bash
+training-sync garmin workout preview examples/planned-strength.json
+training-sync garmin workout preview examples/planned-cycling.json
+training-sync garmin workout preview examples/planned-running-power.json
+```
+
+The preview is the exact flattened sequence submitted to Garmin: warm-up,
+work, recovery, cooldown, exercise identity, reps/time/distance/lap
+termination, rests, bodyweight, total/per-hand load, and target bounds. An
+explicit `garmin_name` is assistant-prepared and user-authorized; it is not
+read from the vault or inferred from source prose. Resolution uses existing
+mapping/alias precedence before an exact catalog entry, and conflicting or
+unknown identities stop the operation.
+
+Create a reusable template, optionally scheduling it on an explicit local
+calendar date:
+
+```bash
+training-sync garmin workout create examples/planned-strength.json
+training-sync garmin workout create examples/planned-strength.json --date 2026-09-13 --yes
+```
+
+Without `--yes`, create remains a preview and performs no Garmin mutation. With
+`--yes`, the command reads the saved template back before scheduling and reads
+the exact calendar occurrence back afterward. The local journal under
+`~/.config/training-sync/planned-workouts.json` records account-scoped content
+hashes, IDs, and recoverable states; it does not contain source prose,
+credentials, or vault paths. A changed plan under the same key is a conflict,
+and an uncertain upload is reconciled read-only before any retry.
+
+Template and occurrence management are separate:
+
+```bash
+training-sync garmin workout list
+training-sync garmin workout show WORKOUT_ID
+training-sync garmin workout update WORKOUT_ID examples/planned-strength.json --yes
+training-sync garmin workout duplicate WORKOUT_ID --name "Copy" --yes
+training-sync garmin workout delete WORKOUT_ID --yes
+training-sync garmin calendar list --from 2026-09-13 --to 2026-09-20
+training-sync garmin calendar schedule WORKOUT_ID --date 2026-09-13 --yes
+training-sync garmin calendar move SCHEDULE_ID --date 2026-09-14 --yes
+training-sync garmin calendar remove SCHEDULE_ID --yes
+training-sync garmin calendar replace SCHEDULE_ID examples/planned-strength.json --yes
+```
+
+These commands manage Garmin Connect templates and calendar occurrences only.
+They do not edit completed activities, Obsidian, or Weight x Reps, and this
+version has no explicit device-push call. `verified` means Garmin Connect
+read-back matched the requested semantics; it does not mean that a watch or
+Edge has downloaded or executed the workout. Device compatibility for running
+power, indoor context, target display, and the exact rest/side behavior remains
+unverified until an explicitly authorized smoke test on a compatible device.
+
+### 6. Weight x Reps
 
 Implementation notes:
 
@@ -352,7 +415,7 @@ Mappings with `create_if_missing = true` still require the full catalog from a
 configured user id; without one, pushes keep using the safe partial JEditor
 catalog and reject creation before writing.
 
-### 6. Intervals.icu
+### 7. Intervals.icu
 
 Store the personal API key outside the repository, either in the environment
 or in a local file (the key is never printed):

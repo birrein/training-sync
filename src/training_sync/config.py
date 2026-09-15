@@ -45,6 +45,11 @@ def garmin_token_path() -> Path:
     return config_dir() / "garmin-token.json"
 
 
+def planned_workout_journal_path() -> Path:
+    """Return the local journal used for planned-workout recovery."""
+    return config_dir() / "planned-workouts.json"
+
+
 def weightxreps_token_path() -> Path:
     return config_dir() / "weightxreps-token.json"
 
