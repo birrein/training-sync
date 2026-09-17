@@ -2,15 +2,17 @@
 
 This module is deliberately an adapter boundary.  It consumes the validated
 domain model, reuses the existing Garmin exercise mapping, and produces a
-deterministic flat sequence suitable for preview and later publication.  It
-does not authenticate, call Garmin, read the vault, or mutate any local
-training record.
+deterministic expanded sequence plus a compact repeat-group payload suitable
+for preview and later publication.  It does not authenticate, call Garmin,
+read the vault, or mutate any local training record.
 """
 
 from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
+from copy import deepcopy
+import json
 import math
 from typing import Any, Mapping
 
@@ -30,6 +32,10 @@ from training_sync.garmin.exercise_mapping import (
     FITBOD_CUSTOM_MAP,
     get_mapping,
     load_garmin_dict,
+)
+from training_sync.garmin.workout_steps import (
+    RepeatGroupLayout,
+    decode_workout_steps,
 )
 
 
@@ -67,6 +73,10 @@ class ProviderStepLimitError(ValueError):
     """Raised when a provider limit would require silently truncating steps."""
 
 
+class StrengthRestRequiredError(ValueError):
+    """Raised when a new strength prescription omits a required rest."""
+
+
 @dataclass(frozen=True)
 class ExerciseResolution:
     """The selected Garmin identity and the reason it won."""
@@ -85,6 +95,17 @@ class GarminWorkoutProjection:
     steps: tuple[dict[str, Any], ...]
     preview: str
     resolutions: tuple[ExerciseResolution, ...] = ()
+    repeat_groups: tuple[RepeatGroupLayout, ...] = ()
+
+
+@dataclass(frozen=True)
+class _StrengthUnit:
+    """One physical strength set and its following rest."""
+
+    active_steps: tuple[dict[str, Any], ...]
+    following_rest: dict[str, Any]
+    exercise_index: int
+    can_group: bool
 
 
 _SPORT_TYPES: dict[str, dict[str, Any]] = {
@@ -103,6 +124,7 @@ _STEP_TYPES: dict[str, dict[str, Any]] = {
     "interval": {"stepTypeId": 3, "stepTypeKey": "interval", "displayOrder": 3},
     "recovery": {"stepTypeId": 4, "stepTypeKey": "recovery", "displayOrder": 4},
     "rest": {"stepTypeId": 5, "stepTypeKey": "rest", "displayOrder": 5},
+    "repeat": {"stepTypeId": 6, "stepTypeKey": "repeat", "displayOrder": 6},
     "other": {"stepTypeId": 7, "stepTypeKey": "other", "displayOrder": 7},
 }
 
@@ -129,6 +151,12 @@ _CONDITIONS: dict[str, dict[str, Any]] = {
         "conditionTypeId": 10,
         "conditionTypeKey": "reps",
         "displayOrder": 10,
+        "displayable": True,
+    },
+    "iterations": {
+        "conditionTypeId": 7,
+        "conditionTypeKey": "iterations",
+        "displayOrder": 7,
         "displayable": True,
     },
 }
@@ -227,18 +255,21 @@ def project_planned_workout(
     catalog = garmin_dict if garmin_dict is not None else load_garmin_dict()
     raw_steps: list[dict[str, Any]] = []
     resolutions: list[ExerciseResolution] = []
+    strength_units: list[_StrengthUnit] = []
+    payload_prefix: list[dict[str, Any]] = []
 
     if workout.sport == "strength_training":
+        _validate_strength_rests(workout)
         if workout.warmup is not None:
-            raw_steps.append(
-                _endurance_step(
-                    workout.warmup,
-                    order=0,
-                    step_type=workout.warmup.role,
-                    description=workout.warmup.description or "Warm-up",
-                    preferred_end_condition_unit=None,
-                )
+            warmup_step = _endurance_step(
+                workout.warmup,
+                order=0,
+                step_type=workout.warmup.role,
+                description=workout.warmup.description or "Warm-up",
+                preferred_end_condition_unit=None,
             )
+            raw_steps.append(warmup_step)
+            payload_prefix.append(warmup_step)
         for index, exercise in enumerate(workout.exercises):
             resolution = resolve_garmin_exercise(
                 exercise.name,
@@ -256,6 +287,8 @@ def project_planned_workout(
                 exercise,
                 resolution,
                 next_name=next_name,
+                exercise_index=index,
+                units=strength_units,
             )
     else:
         if workout.warmup is not None:
@@ -287,6 +320,12 @@ def project_planned_workout(
         )
 
     steps = tuple(_reorder_steps(raw_steps))
+    if workout.sport == "strength_training":
+        payload_steps = _reorder_payload_steps(
+            payload_prefix + _compact_strength_units(strength_units)
+        )
+    else:
+        payload_steps = _reorder_payload_steps(raw_steps)
     sport_type = dict(_SPORT_TYPES[workout.sport])
     description = _workout_description(workout)
     payload: dict[str, Any] = {
@@ -297,16 +336,18 @@ def project_planned_workout(
             {
                 "segmentOrder": 1,
                 "sportType": dict(sport_type),
-                "workoutSteps": [dict(step) for step in steps],
+                "workoutSteps": payload_steps,
             }
         ],
         "description": description,
     }
+    layout = decode_workout_steps(payload).repeat_groups
     return GarminWorkoutProjection(
         payload=payload,
         steps=steps,
-        preview=_preview(workout, steps, resolutions),
+        preview=_preview(workout, steps, resolutions, repeat_groups=layout),
         resolutions=tuple(resolutions),
+        repeat_groups=layout,
     )
 
 
@@ -342,12 +383,15 @@ def _append_strength_exercise(
     resolution: ExerciseResolution,
     *,
     next_name: str | None,
+    exercise_index: int,
+    units: list[_StrengthUnit],
 ) -> None:
     separate_sides = bool(exercise.sides)
     for set_index, planned_set in enumerate(exercise.sets):
+        active_steps: list[dict[str, Any]] = []
         if separate_sides:
             for side_index, side in enumerate(exercise.sides):
-                target.append(
+                active_steps.append(
                     _strength_step(
                         planned_set,
                         exercise,
@@ -359,7 +403,7 @@ def _append_strength_exercise(
                 )
                 if side_index + 1 < len(exercise.sides):
                     if exercise.rest_between_sides is not None:
-                        target.append(
+                        active_steps.append(
                             _rest_step(
                                 exercise.rest_between_sides,
                                 order=0,
@@ -371,53 +415,182 @@ def _append_strength_exercise(
                                 ),
                             )
                         )
-            rest = (
-                exercise.rest_between_sets
-                if set_index + 1 < len(exercise.sets)
-                else exercise.rest_after_exercise
-            )
-            if rest is not None:
-                target.append(
-                    _rest_step(
-                        rest,
-                        order=0,
-                        description=_rest_description(
-                            rest,
-                            exercise.name,
-                            next_name=next_name,
-                        ),
-                    )
+        else:
+            both_sides = planned_set.load.basis == "per_hand"
+            active_steps.append(
+                _strength_step(
+                    planned_set,
+                    exercise,
+                    resolution,
+                    order=0,
+                    side="both" if both_sides else None,
+                    both_sides=both_sides,
                 )
-            continue
-
-        both_sides = planned_set.load.basis == "per_hand"
-        target.append(
-            _strength_step(
-                planned_set,
-                exercise,
-                resolution,
-                order=0,
-                side="both" if both_sides else None,
-                both_sides=both_sides,
             )
-        )
         rest = (
             exercise.rest_between_sets
             if set_index + 1 < len(exercise.sets)
             else exercise.rest_after_exercise
         )
-        if rest is not None:
-            target.append(
-                _rest_step(
-                    rest,
-                    order=0,
-                    description=_rest_description(
-                        rest,
-                        exercise.name,
-                        next_name=next_name,
-                    ),
-                )
+        if rest is None:
+            raise StrengthRestRequiredError(
+                f"explicit timed or manual rest is required at "
+                f"exercises[{exercise_index}].rest_after_exercise"
             )
+        following_rest = _rest_step(
+            rest,
+            order=0,
+            description=_rest_description(
+                rest,
+                exercise.name,
+                next_name=next_name,
+            ),
+        )
+        target.extend(active_steps)
+        target.append(following_rest)
+        units.append(
+            _StrengthUnit(
+                active_steps=tuple(active_steps),
+                following_rest=following_rest,
+                exercise_index=exercise_index,
+                can_group=(
+                    not separate_sides and planned_set.termination.until == "reps"
+                ),
+            )
+        )
+
+
+def _validate_strength_rests(workout: PlannedWorkout) -> None:
+    """Require an explicit rest after every physical set for new writes."""
+
+    for index, exercise in enumerate(workout.exercises):
+        path = f"exercises[{index}]"
+        if len(exercise.sets) > 1 and exercise.rest_between_sets is None:
+            raise StrengthRestRequiredError(
+                f"explicit timed or manual rest is required at "
+                f"{path}.rest_between_sets; null or undefined rests are not "
+                "accepted for new strength writes"
+            )
+        if exercise.rest_after_exercise is None:
+            raise StrengthRestRequiredError(
+                f"explicit timed or manual rest is required at "
+                f"{path}.rest_after_exercise; null or undefined rests are not "
+                "accepted for new strength writes"
+            )
+        if exercise.sides and exercise.rest_between_sides is None:
+            raise StrengthRestRequiredError(
+                f"explicit timed or manual rest is required at "
+                f"{path}.rest_between_sides; null or undefined rests are not "
+                "accepted for new strength writes"
+            )
+
+
+def _compact_strength_units(units: list[_StrengthUnit]) -> list[dict[str, Any]]:
+    """Compact maximal eligible runs while preserving every unit's rest."""
+
+    result: list[dict[str, Any]] = []
+    index = 0
+    group_index = 0
+    while index < len(units):
+        unit = units[index]
+        if not unit.can_group:
+            result.extend(_flatten_strength_unit(unit))
+            index += 1
+            continue
+
+        signature = _strength_unit_signature(unit)
+        end = index + 1
+        while end < len(units):
+            candidate = units[end]
+            if not candidate.can_group or _strength_unit_signature(candidate) != signature:
+                break
+            end += 1
+        if end - index >= 2:
+            group_index += 1
+            result.append(_repeat_group(units[index:end], group_index=group_index))
+        else:
+            result.extend(_flatten_strength_unit(unit))
+        index = end
+    return result
+
+
+def _flatten_strength_unit(unit: _StrengthUnit) -> list[dict[str, Any]]:
+    return [
+        *[deepcopy(step) for step in unit.active_steps],
+        deepcopy(unit.following_rest),
+    ]
+
+
+def _strength_unit_signature(unit: _StrengthUnit) -> tuple[int, str, str]:
+    if len(unit.active_steps) != 1:
+        return (unit.exercise_index, "not-groupable", "not-groupable")
+    return (
+        unit.exercise_index,
+        _semantic_step_signature(unit.active_steps[0]),
+        _semantic_step_signature(unit.following_rest),
+    )
+
+
+def _semantic_step_signature(step: Mapping[str, Any]) -> str:
+    semantic = {
+        key: value
+        for key, value in step.items()
+        if key not in {"stepOrder", "childStepId"}
+    }
+    return json.dumps(semantic, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _repeat_group(
+    units: list[_StrengthUnit],
+    *,
+    group_index: int,
+) -> dict[str, Any]:
+    first = units[0]
+    if len(first.active_steps) != 1:
+        raise ValueError("only one-step strength units can be grouped")
+    child_id = group_index * 2 - 1
+    active = deepcopy(first.active_steps[0])
+    rest = deepcopy(first.following_rest)
+    active["childStepId"] = child_id
+    rest["childStepId"] = child_id + 1
+    iterations = len(units)
+    condition = dict(_CONDITIONS["iterations"])
+    return {
+        "type": "RepeatGroupDTO",
+        "stepOrder": 0,
+        "stepType": dict(_STEP_TYPES["repeat"]),
+        "childStepId": child_id,
+        "description": f"{iterations} sets: {active.get('description', '')}".strip(),
+        "endCondition": condition,
+        "endConditionValue": iterations,
+        "numberOfIterations": iterations,
+        "skipLastRestStep": False,
+        "workoutSteps": [active, rest],
+    }
+
+
+def _reorder_payload_steps(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Assign globally unique deterministic orders to parents and children."""
+
+    result: list[dict[str, Any]] = []
+    order = 1
+    for step in steps:
+        copied = _provider_safe_step(step)
+        copied["stepOrder"] = order
+        order += 1
+        if copied.get("type") == "RepeatGroupDTO":
+            children = copied.get("workoutSteps")
+            if not isinstance(children, list):
+                raise ValueError("generated repeat group has no child steps")
+            reordered_children: list[dict[str, Any]] = []
+            for child in children:
+                child_copy = deepcopy(child)
+                child_copy["stepOrder"] = order
+                order += 1
+                reordered_children.append(child_copy)
+            copied["workoutSteps"] = reordered_children
+        result.append(copied)
+    return result
 
 
 def _strength_step(
@@ -797,10 +970,21 @@ def _preview(
     workout: PlannedWorkout,
     steps: tuple[dict[str, Any], ...],
     resolutions: list[ExerciseResolution],
+    *,
+    repeat_groups: tuple[RepeatGroupLayout, ...] = (),
 ) -> str:
     lines = [f"{workout.name} [{workout.sport}] — {len(steps)} steps"]
     if workout.context:
         lines.append(f"Context: {workout.context}")
+    if repeat_groups:
+        lines.append(
+            "Repeat groups: "
+            + "; ".join(
+                f"{group.iterations} iterations "
+                f"(skipLastRestStep={'true' if group.skip_last_rest_step else 'false'})"
+                for group in repeat_groups
+            )
+        )
     for step in steps:
         condition = step["endCondition"]["conditionTypeKey"]
         value = step["endConditionValue"]

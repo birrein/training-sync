@@ -39,6 +39,42 @@ def strength_plan(*, date=None):
     return planned_workout_from_dict(plan)
 
 
+def grouped_strength_plan(*, compact=False):
+    sets = (
+        [{"reps": 10, "load": {"kind": "mass", "kg": 83, "basis": "total"}, "repeat": 2}]
+        if compact
+        else [
+            {"reps": 10, "load": {"kind": "mass", "kg": 83, "basis": "total"}},
+            {"reps": 10, "load": {"kind": "mass", "kg": 83, "basis": "total"}},
+        ]
+    )
+    return planned_workout_from_dict(
+        {
+            "schema_version": 1,
+            "key": "grouped-publishable-plan",
+            "name": "Grouped Publishable Plan",
+            "sport": "strength_training",
+            "exercises": [
+                {
+                    "name": "Romanian Deadlift",
+                    "sets": sets,
+                    "rest_between_sets": {"until": "time", "seconds": 165},
+                    "rest_after_exercise": {"until": "time", "seconds": 165},
+                }
+            ],
+        }
+    )
+
+
+def flat_payload(plan):
+    projection = project_planned_workout(plan)
+    payload = deepcopy(projection.payload)
+    payload["workoutSegments"][0]["workoutSteps"] = [
+        deepcopy(step) for step in projection.steps
+    ]
+    return payload
+
+
 class FakeGarminClient:
     def __init__(self):
         self.workouts = {}
@@ -111,7 +147,9 @@ class ProviderBoundaryGarminClient(FakeGarminClient):
         sport_type = payload.get("sportType") or {}
         if sport_type.get("sportTypeKey") == "strength_training":
             assert sport_type.get("displayOrder") == 4
-        for step in payload["workoutSegments"][0]["workoutSteps"]:
+        from training_sync.garmin.workout_steps import decode_workout_steps
+
+        for step in decode_workout_steps(payload).steps:
             for field in (
                 "originalExerciseName",
                 "garminName",
@@ -132,6 +170,24 @@ class ProviderBoundaryGarminClient(FakeGarminClient):
             if sport_type.get("sportTypeKey") == "strength_training":
                 assert step.get("preferredEndConditionUnit") is None
         return super().upload_workout(payload)
+
+
+@pytest.mark.parametrize("basis", ["total", "per_hand"])
+def test_grouped_publication_uses_provider_safe_children(basis):
+    data = grouped_strength_plan(compact=True).to_dict()
+    for planned_set in data["exercises"][0]["sets"]:
+        planned_set["load"]["basis"] = basis
+    client = ProviderBoundaryGarminClient()
+
+    result = publish_workout(client, data, authorized=True, journal_path=None)
+
+    assert result.verified
+    assert client.upload_calls == 1
+    group = client.workouts[result.workout_id]["workoutSegments"][0]["workoutSteps"][0]
+    assert group["numberOfIterations"] == 2
+    assert group["skipLastRestStep"] is False
+    assert group["workoutSteps"][0]["weightValue"] == 83
+    assert group["workoutSteps"][-1]["stepType"]["stepTypeKey"] == "rest"
 
 
 class GarminHttp500Error(RuntimeError):
@@ -230,6 +286,137 @@ def test_readback_rest_mismatch_fails_before_scheduling():
     assert result.schedule_state == "not_attempted"
     assert result.workout_id == 100
     assert client.schedule_calls == 0
+
+
+def test_grouped_readback_is_verified_and_scheduling_can_follow():
+    client = FakeGarminClient()
+
+    result = publish_workout(
+        client,
+        grouped_strength_plan(),
+        authorized=True,
+        schedule_date="2026-09-13",
+        journal_path=None,
+    )
+
+    saved_steps = client.workouts[result.workout_id]["workoutSegments"][0][
+        "workoutSteps"
+    ]
+    assert result.template_state == "verified"
+    assert result.schedule_state == "verified"
+    assert saved_steps[0]["type"] == "RepeatGroupDTO"
+    assert saved_steps[0]["numberOfIterations"] == 2
+
+
+@pytest.mark.parametrize("mutation,expected_error", [
+    ("count", "step count mismatch"),
+    ("rest", "termination value mismatch"),
+    ("load", "load value/unit mismatch"),
+])
+def test_grouped_readback_changes_fail_before_scheduling(mutation, expected_error):
+    class ChangedGroupedClient(FakeGarminClient):
+        def get_workout_by_id(self, workout_id):
+            result = super().get_workout_by_id(workout_id)
+            group = result["workoutSegments"][0]["workoutSteps"][0]
+            if mutation == "count":
+                group["numberOfIterations"] = 3
+                group["endConditionValue"] = 3
+            elif mutation == "rest":
+                group["workoutSteps"][1]["endConditionValue"] = 120
+            else:
+                group["workoutSteps"][0]["weightValue"] = 84000
+            return result
+
+    client = ChangedGroupedClient()
+    result = publish_workout(
+        client,
+        grouped_strength_plan(),
+        authorized=True,
+        schedule_date="2026-09-13",
+        journal_path=None,
+    )
+
+    assert result.template_state == "verification_failed"
+    assert result.schedule_state == "not_attempted"
+    assert client.schedule_calls == 0
+    assert any(expected_error in error for error in result.verification_errors)
+
+
+def test_flattened_grouped_readback_is_rejected_for_new_write():
+    class FlatteningClient(FakeGarminClient):
+        def get_workout_by_id(self, workout_id):
+            result = super().get_workout_by_id(workout_id)
+            result["workoutSegments"][0]["workoutSteps"] = [
+                deepcopy(step) for step in project_planned_workout(grouped_strength_plan()).steps
+            ]
+            return result
+
+    client = FlatteningClient()
+    result = publish_workout(
+        client,
+        grouped_strength_plan(),
+        authorized=True,
+        journal_path=None,
+    )
+
+    assert result.template_state == "verification_failed"
+    assert any("repeat group" in error for error in result.verification_errors)
+    assert client.schedule_calls == 0
+
+
+def test_historical_flat_journal_retry_reuses_without_rewrite(tmp_path):
+    plan = grouped_strength_plan()
+    client = FakeGarminClient()
+    client.workouts[100] = {
+        **flat_payload(plan),
+        "workoutId": 100,
+    }
+    marker = build_publication_marker(plan)
+    key = "default\0grouped-publishable-plan"
+    journal_path = tmp_path / "journal.json"
+    journal_path.write_text(
+        json.dumps(
+            {
+                "entries": {
+                    key: {
+                        "account_plan_key": key,
+                        "plan_key": plan.key,
+                        "execution_hash": plan.execution_hash(),
+                        "marker": marker,
+                        "state": "uploaded",
+                        "workout_id": 100,
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = publish_workout(client, plan, authorized=True, journal_path=journal_path)
+
+    assert result.template_state == "verified"
+    assert result.workout_id == 100
+    assert result.reused is True
+    assert client.upload_calls == 0
+    assert all(
+        step.get("type") != "RepeatGroupDTO"
+        for step in client.workouts[100]["workoutSegments"][0]["workoutSteps"]
+    )
+
+
+def test_compact_and_explicit_same_key_retry_without_duplicate_upload(tmp_path):
+    client = FakeGarminClient()
+    journal_path = tmp_path / "journal.json"
+    compact = grouped_strength_plan(compact=True)
+    explicit = grouped_strength_plan()
+
+    assert compact.execution_hash() == explicit.execution_hash()
+    first = publish_workout(client, compact, authorized=True, journal_path=journal_path)
+    second = publish_workout(client, explicit, authorized=True, journal_path=journal_path)
+
+    assert first.workout_id == second.workout_id == 100
+    assert second.reused is True
+    assert client.upload_calls == 1
 
 
 def test_calendar_failure_keeps_verified_template_id_and_separate_status():
@@ -405,7 +592,7 @@ def test_missing_dragon_flag_comment_fails_verification():
                     "garmin_name": "Reverse Crunch on a Bench",
                     "sets": [{"reps": 8, "load": {"kind": "bodyweight"}}],
                     "rest_between_sets": None,
-                    "rest_after_exercise": None,
+                    "rest_after_exercise": {"until": "lap"},
                 }
             ],
         }
@@ -444,7 +631,7 @@ def test_missing_per_hand_instruction_fails_even_when_mass_matches():
                         }
                     ],
                     "rest_between_sets": None,
-                    "rest_after_exercise": None,
+                    "rest_after_exercise": {"until": "lap"},
                 }
             ],
         }

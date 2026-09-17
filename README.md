@@ -273,6 +273,23 @@ termination and target units. An explicit `garmin_name` is assistant-prepared
 and user-authorized; it is not read from the vault or inferred from source
 prose. Resolution uses existing mapping/alias precedence before an exact
 catalog entry, and conflicting or unknown identities stop the operation.
+The preview expands every executable step used for verification. Garmin
+may receive eligible consecutive strength sets as a compact
+`RepeatGroupDTO`; the preview still lists every physical set and rest and
+discloses the iteration count and `skipLastRestStep` value. Equal groups use
+`skipLastRestStep=false` so the final rest remains available for post-set
+editing.
+
+For strength input, each `sets` entry may include an optional positive integer
+`repeat` (default `1`). It repeats complete sets, not repetitions or load, so
+explicit and compact entries can be mixed while preserving order and
+termination. Expansion happens before canonical hashing; equivalent compact
+and explicit plans therefore have the same execution content and idempotency
+key. The aggregate source-expansion safety bound is **1,000 physical strength
+sets** per plan; it protects local allocation and is separate from Garmin's
+provider/device capacity. New strength writes require an explicit timed or
+manual rest after every physical set, including the final set; a missing or
+null rest fails preflight and no duration is invented.
 
 Create a reusable template, optionally scheduling it on an explicit local
 calendar date:

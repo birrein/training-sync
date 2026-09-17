@@ -40,6 +40,11 @@ from training_sync.use_cases.publish_workout import (
     verify_saved_workout,
     publish_workout,
 )
+from training_sync.garmin.workout_steps import (
+    DecodedWorkoutSteps,
+    WorkoutStepDecodeError,
+    decode_workout_steps,
+)
 
 
 class ManagementError(RuntimeError):
@@ -297,6 +302,7 @@ def duplicate_workout(
     if not isinstance(name, str) or not name.strip():
         raise ValueError("duplicate name must be non-empty")
     original = read_workout(client, workout_id)
+    _assert_editable_structure(original)
     desired = deepcopy(original)
     desired["workoutName"] = name.strip()
     desired.pop("workoutId", None)
@@ -517,10 +523,16 @@ def _merge_supported_update(
         )
 
     result = deepcopy(dict(current))
-    for key in ("workoutName", "sportType", "estimatedDurationInSecs", "description"):
+    for key in (
+        "workoutName",
+        "sportType",
+        "estimatedDurationInSecs",
+        "description",
+        "context",
+    ):
         if key in projection.payload:
             result[key] = deepcopy(projection.payload[key])
-    merged_segments = []
+    merged_segments: list[dict[str, Any]] = []
     for current_segment, desired_segment in zip(current_segments, desired_segments):
         if not isinstance(current_segment, Mapping) or not isinstance(desired_segment, Mapping):
             raise UnsupportedRemoteStructureError("workout segment is not an object")
@@ -528,51 +540,260 @@ def _merge_supported_update(
         desired_steps = desired_segment.get("workoutSteps")
         if not isinstance(current_steps, list) or not isinstance(desired_steps, list):
             raise UnsupportedRemoteStructureError("workout steps are not editable")
-        if len(current_steps) != len(desired_steps):
+        current_decoded = _decode_segment_steps(current_steps, "current")
+        desired_decoded = _decode_segment_steps(desired_steps, "desired")
+        if len(current_decoded.steps) != len(desired_decoded.steps):
             raise UnsupportedRemoteStructureError(
-                "changing the number of executable steps is unsafe for a template update"
+                "changing the number of expanded executable steps is unsafe "
+                "for a template update"
             )
         merged_segment = deepcopy(dict(current_segment))
         if "sportType" in desired_segment:
             merged_segment["sportType"] = deepcopy(desired_segment["sportType"])
-        merged_steps = []
-        for current_step, desired_step in zip(current_steps, desired_steps):
-            if not isinstance(current_step, Mapping) or not isinstance(desired_step, Mapping):
-                raise UnsupportedRemoteStructureError("workout step is not an object")
-            merged_step = deepcopy(dict(current_step))
-            # Only semantic fields are replaced. Provider IDs and unrelated
-            # fields attached to the existing step remain untouched.
-            for key in _editable_step_fields():
-                if key in desired_step:
-                    merged_step[key] = deepcopy(desired_step[key])
-            merged_steps.append(merged_step)
+        merged_steps = _merge_step_tree(
+            current_steps,
+            current_decoded,
+            desired_steps,
+            desired_decoded,
+            segment_index=len(merged_segments),
+        )
         merged_segment["workoutSteps"] = merged_steps
         merged_segments.append(merged_segment)
     result["workoutSegments"] = merged_segments
     return _sanitize_provider_payload(result)
 
 
-def _assert_editable_structure(payload: Mapping[str, Any]) -> None:
+def _assert_editable_structure(payload: Mapping[str, Any]) -> DecodedWorkoutSteps:
     segments = payload.get("workoutSegments")
     if not isinstance(segments, list) or not segments:
         raise UnsupportedRemoteStructureError("workout has no editable segments")
-    for segment in segments:
-        if not isinstance(segment, Mapping) or not isinstance(segment.get("workoutSteps"), list):
-            raise UnsupportedRemoteStructureError("workout segment has unsupported shape")
-        for step in segment["workoutSteps"]:
-            if not isinstance(step, Mapping):
-                raise UnsupportedRemoteStructureError("workout step has unsupported shape")
-            step_type = str(step.get("type") or "")
-            step_key = str((step.get("stepType") or {}).get("stepTypeKey") or "")
-            if "RepeatGroup" in step_type or step_key == "repeat" or "workoutSteps" in step:
+    try:
+        decoded = decode_workout_steps(payload)
+    except WorkoutStepDecodeError as exc:
+        raise UnsupportedRemoteStructureError(
+            f"unsupported workout step structure: {exc}"
+        ) from exc
+    return decoded
+
+
+def _decode_segment_steps(
+    steps: list[Any],
+    label: str,
+) -> DecodedWorkoutSteps:
+    try:
+        return decode_workout_steps(steps)
+    except WorkoutStepDecodeError as exc:
+        raise UnsupportedRemoteStructureError(
+            f"unsupported {label} workout step structure: {exc}"
+        ) from exc
+
+
+def _merge_step_tree(
+    current_steps: list[Any],
+    current_decoded: DecodedWorkoutSteps,
+    desired_steps: list[Any],
+    desired_decoded: DecodedWorkoutSteps,
+    *,
+    segment_index: int,
+) -> list[dict[str, Any]]:
+    """Merge desired semantics into a flat or grouped supported step tree."""
+
+    current_physical = list(current_decoded.steps)
+    desired_physical = list(desired_decoded.steps)
+    current_group_payloads = _repeat_group_payloads(
+        current_steps, current_decoded
+    )
+    desired_groups = {
+        group.start_index: group for group in desired_decoded.repeat_groups
+    }
+    for start_index, current_group in current_group_payloads.items():
+        if start_index not in desired_groups and _unrelated_group_metadata(current_group):
+            raise UnsupportedRemoteStructureError(
+                "group metadata cannot be preserved when changing the repeat layout"
+            )
+    merged: list[dict[str, Any]] = []
+    current_index = 0
+    desired_index = 0
+    for desired_step in desired_steps:
+        if not isinstance(desired_step, Mapping):
+            raise UnsupportedRemoteStructureError(
+                f"desired segment {segment_index + 1} contains a non-object step"
+            )
+        desired_group = desired_groups.get(desired_index)
+        if desired_group is not None and _is_repeat_group_step(desired_step):
+            child_count = len(desired_group.child_steps)
+            if child_count == 0:
                 raise UnsupportedRemoteStructureError(
-                    "repeat-group workout structure cannot be safely updated"
+                    "repeat group has no preservable child steps"
                 )
+            children: list[dict[str, Any]] = []
+            for child_index, desired_child in enumerate(desired_group.child_steps):
+                source_indexes = [
+                    current_index + iteration * child_count + child_index
+                    for iteration in range(desired_group.iterations)
+                    if not (
+                        desired_group.skip_last_rest_step
+                        and iteration == desired_group.iterations - 1
+                        and child_index == child_count - 1
+                    )
+                ]
+                if not source_indexes or source_indexes[-1] >= len(current_physical):
+                    raise UnsupportedRemoteStructureError(
+                        "repeat group cannot be aligned with existing expanded execution"
+                    )
+                _ensure_metadata_consistent(
+                    [current_physical[index] for index in source_indexes],
+                    f"repeat group child {child_index + 1}",
+                )
+                children.append(
+                    _merge_step(
+                        current_physical[source_indexes[0]], desired_child
+                    )
+                )
+            current_group = current_group_payloads.get(current_index)
+            merged_group = _merge_group(
+                current_group,
+                desired_step,
+                children,
+            )
+            merged.append(merged_group)
+            current_index += desired_group.expanded_step_count
+            desired_index += desired_group.expanded_step_count
+            continue
+
+        if current_index >= len(current_physical):
+            raise UnsupportedRemoteStructureError(
+                "desired step sequence cannot be aligned with existing execution"
+            )
+        merged.append(_merge_step(current_physical[current_index], desired_step))
+        current_index += 1
+        desired_index += 1
+
+    if current_index != len(current_physical) or desired_index != len(desired_physical):
+        raise UnsupportedRemoteStructureError(
+            "step tree alignment did not consume the complete expanded execution"
+        )
+    return merged
+
+
+def _merge_step(
+    current_step: Mapping[str, Any],
+    desired_step: Mapping[str, Any],
+) -> dict[str, Any]:
+    merged = deepcopy(dict(current_step))
+    # Only semantic and hierarchy fields are replaced. Unknown provider
+    # metadata attached to an aligned physical step remains untouched.
+    for key in _editable_step_fields():
+        if key in desired_step:
+            merged[key] = deepcopy(desired_step[key])
+    return merged
+
+
+def _merge_group(
+    current_group: Mapping[str, Any] | None,
+    desired_group: Mapping[str, Any],
+    children: list[dict[str, Any]],
+) -> dict[str, Any]:
+    merged = deepcopy(dict(current_group)) if current_group is not None else {}
+    merged.update(deepcopy(dict(desired_group)))
+    merged["workoutSteps"] = children
+    return merged
+
+
+def _repeat_group_payloads(
+    steps: list[Any],
+    decoded: DecodedWorkoutSteps,
+) -> dict[int, Mapping[str, Any]]:
+    """Index raw top-level groups by their expanded start position."""
+
+    layouts = {group.start_index: group for group in decoded.repeat_groups}
+    result: dict[int, Mapping[str, Any]] = {}
+    expanded_index = 0
+    for step in steps:
+        if isinstance(step, Mapping) and _is_repeat_group_step(step):
+            layout = layouts.get(expanded_index)
+            if layout is not None:
+                result[expanded_index] = step
+                expanded_index += layout.expanded_step_count
+                continue
+        expanded_index += 1
+    return result
+
+
+def _ensure_metadata_consistent(
+    steps: list[Mapping[str, Any]],
+    label: str,
+) -> None:
+    if len(steps) < 2:
+        return
+    baseline = _unrelated_step_metadata(steps[0])
+    for step in steps[1:]:
+        if _unrelated_step_metadata(step) != baseline:
+            raise UnsupportedRemoteStructureError(
+                f"conflicting provider metadata in {label}; "
+                "one grouped child cannot preserve per-set metadata"
+            )
+
+
+def _unrelated_step_metadata(step: Mapping[str, Any]) -> dict[str, Any]:
+    excluded = set(_editable_step_fields()) | {
+        "workoutSteps",
+        "id",
+        "numberOfIterations",
+        "skipLastRestStep",
+        "stepId",
+        "stepID",
+        "workoutStepId",
+        "workoutStepID",
+        "step_id",
+        "parentStepId",
+    }
+    return {
+        key: deepcopy(value)
+        for key, value in step.items()
+        if key not in excluded
+    }
+
+
+def _unrelated_group_metadata(group: Mapping[str, Any]) -> dict[str, Any]:
+    known = {
+        "type",
+        "stepOrder",
+        "childStepId",
+        "description",
+        "stepType",
+        "endCondition",
+        "endConditionValue",
+        "numberOfIterations",
+        "skipLastRestStep",
+        "workoutSteps",
+        "id",
+        "groupId",
+        "groupID",
+        "repeatGroupId",
+        "repeatGroupID",
+    }
+    return {
+        key: deepcopy(value)
+        for key, value in group.items()
+        if key not in known
+    }
+
+
+def _is_repeat_group_step(step: Mapping[str, Any]) -> bool:
+    return (
+        step.get("type") == "RepeatGroupDTO"
+        or "RepeatGroup" in str(step.get("type") or "")
+        or (isinstance(step.get("stepType"), Mapping) and step["stepType"].get("stepTypeKey") == "repeat")
+        or "numberOfIterations" in step
+    )
 
 
 def _editable_step_fields() -> tuple[str, ...]:
     return (
+        "type",
         "stepOrder",
+        "childStepId",
         "description",
         "stepType",
         "endCondition",
@@ -614,11 +835,12 @@ def _preserved_top_level_fields(payload: Mapping[str, Any]) -> list[str]:
 
 
 def _steps(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    values: list[Mapping[str, Any]] = []
-    for segment in payload.get("workoutSegments", []):
-        if isinstance(segment, Mapping):
-            values.extend(item for item in segment.get("workoutSteps", []) if isinstance(item, Mapping))
-    return values
+    try:
+        return list(decode_workout_steps(payload).steps)
+    except WorkoutStepDecodeError as exc:
+        raise UnsupportedRemoteStructureError(
+            f"unsupported workout step structure: {exc}"
+        ) from exc
 
 
 def _remote_hash(payload: Mapping[str, Any]) -> str:
@@ -750,28 +972,72 @@ def _duplicate_matches(
 ) -> bool:
     if saved.get("workoutName") != expected_name:
         return False
-    expected_steps = _steps(expected)
-    saved_steps = _steps(saved)
-    if len(expected_steps) != len(saved_steps):
+    try:
+        expected_decoded = decode_workout_steps(expected)
+        saved_decoded = decode_workout_steps(saved)
+    except WorkoutStepDecodeError:
         return False
-    for old, new in zip(expected_steps, saved_steps):
-        for key in (
-            "stepType",
-            "endCondition",
-            "endConditionValue",
-            "preferredEndConditionUnit",
-            "targetType",
-            "targetValueOne",
-            "targetValueTwo",
-            "targetValueUnit",
-            "category",
-            "exerciseName",
-        ):
-            if old.get(key) != new.get(key):
-                return False
-        if not _same_weight(old, new):
-            return False
-    return True
+    if [
+        _semantic_step_key(step) for step in expected_decoded.steps
+    ] != [
+        _semantic_step_key(step) for step in saved_decoded.steps
+    ]:
+        return False
+    if any(
+        not _same_weight(old, new)
+        for old, new in zip(expected_decoded.steps, saved_decoded.steps)
+    ):
+        return False
+    expected_layout = [
+        (
+            group.start_index,
+            group.iterations,
+            group.skip_last_rest_step,
+            len(group.child_steps),
+            group.group_type,
+            group.step_type_key,
+        )
+        for group in expected_decoded.repeat_groups
+    ]
+    saved_layout = [
+        (
+            group.start_index,
+            group.iterations,
+            group.skip_last_rest_step,
+            len(group.child_steps),
+            group.group_type,
+            group.step_type_key,
+        )
+        for group in saved_decoded.repeat_groups
+    ]
+    return expected_layout == saved_layout
+
+
+def _semantic_step_key(step: Mapping[str, Any]) -> str:
+    """Compare non-mass fields; mass uses explicit unit normalization separately."""
+
+    return json.dumps(
+        {
+            key: value
+            for key, value in step.items()
+            if key not in {
+                "weightValue",
+                "weightUnit",
+                "stepOrder",
+                "childStepId",
+                "id",
+                "stepId",
+                "stepID",
+                "workoutStepId",
+                "workoutStepID",
+                "step_id",
+                "parentStepId",
+            }
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
 
 
 def _calendar_references(

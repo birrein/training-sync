@@ -660,7 +660,7 @@ def planned_json(name="CLI Plan"):
                 "name": "Squat",
                 "sets": [{"reps": 5, "load": {"kind": "bodyweight"}}],
                 "rest_between_sets": None,
-                "rest_after_exercise": None,
+                "rest_after_exercise": {"until": "time", "seconds": 30},
             }
         ],
     }
@@ -692,6 +692,100 @@ def test_planned_workout_preview_has_file_and_stdin_parity(monkeypatch, tmp_path
     from_stdin = capsys.readouterr().out
 
     assert from_file == from_stdin
+
+
+def test_compact_and_explicit_strength_json_have_identical_file_stdin_preview(
+    monkeypatch, tmp_path, capsys
+):
+    compact = planned_json()
+    compact["key"] = "compact-cli-plan"
+    compact["exercises"][0]["sets"] = [
+        {"reps": 5, "load": {"kind": "bodyweight"}, "repeat": 2}
+    ]
+    compact["exercises"][0]["rest_between_sets"] = {
+        "until": "time",
+        "seconds": 30,
+    }
+    explicit = planned_json()
+    explicit["key"] = "compact-cli-plan"
+    explicit["exercises"][0]["sets"] = [
+        {"reps": 5, "load": {"kind": "bodyweight"}},
+        {"reps": 5, "load": {"kind": "bodyweight"}},
+    ]
+    explicit["exercises"][0]["rest_between_sets"] = {
+        "until": "time",
+        "seconds": 30,
+    }
+    compact_file = tmp_path / "compact.json"
+    compact_file.write_text(json.dumps(compact), encoding="utf-8")
+
+    cli.main(["garmin", "workout", "preview", str(compact_file)])
+    compact_preview = capsys.readouterr().out
+    monkeypatch.setattr(cli.sys, "stdin", io.StringIO(json.dumps(explicit)))
+    cli.main(["garmin", "workout", "preview", "-"])
+    explicit_preview = capsys.readouterr().out
+
+    assert compact_preview == explicit_preview
+
+
+def test_invalid_repeat_is_rejected_before_authentication(monkeypatch, tmp_path, capsys):
+    invalid = planned_json()
+    invalid["exercises"][0]["sets"][0]["repeat"] = True
+    json_file = tmp_path / "invalid.json"
+    json_file.write_text(json.dumps(invalid), encoding="utf-8")
+    monkeypatch.setattr(cli, "get_client", lambda: pytest.fail("must not authenticate"))
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["garmin", "workout", "create", str(json_file), "--yes"])
+
+    assert exc.value.code == 2
+    assert "repeat" in capsys.readouterr().err
+
+
+def test_authorized_cli_create_submits_grouped_payload_to_fake_client(
+    monkeypatch, tmp_path, capsys
+):
+    payload = planned_json()
+    payload["exercises"][0]["sets"] = [
+        {"reps": 5, "load": {"kind": "bodyweight"}, "repeat": 2}
+    ]
+    payload["exercises"][0]["rest_between_sets"] = {
+        "until": "time",
+        "seconds": 30,
+    }
+    json_file = tmp_path / "grouped.json"
+    json_file.write_text(json.dumps(payload), encoding="utf-8")
+
+    class FakeClient:
+        def __init__(self):
+            self.payload = None
+            self.workout_id = 41
+
+        def upload_workout(self, payload):
+            self.payload = json.loads(json.dumps(payload))
+            return {"workoutId": self.workout_id}
+
+        def get_workout_by_id(self, workout_id):
+            result = json.loads(json.dumps(self.payload))
+            result["workoutId"] = workout_id
+            return result
+
+    client = FakeClient()
+    monkeypatch.setattr(cli, "get_client", lambda: client)
+    from training_sync.use_cases.publish_workout import publish_workout as publish_impl
+
+    monkeypatch.setattr(
+        cli,
+        "publish_workout",
+        lambda remote, plan, **kwargs: publish_impl(
+            remote, plan, journal_path=None, **kwargs
+        ),
+    )
+
+    cli.main(["garmin", "workout", "create", str(json_file), "--yes"])
+
+    assert capsys.readouterr().out
+    assert client.payload["workoutSegments"][0]["workoutSteps"][0]["type"] == "RepeatGroupDTO"
 
 
 def test_planned_workout_create_only_authenticates_with_yes(monkeypatch, tmp_path, capsys):

@@ -29,7 +29,29 @@ def plan(name="Calendar Plan", kg=83, rest=False):
                     "name": "Romanian Deadlift",
                     "sets": [{"reps": 10, "load": {"kind": "mass", "kg": kg, "basis": "total"}}],
                     "rest_between_sets": None,
-                    "rest_after_exercise": {"until": "time", "seconds": 30} if rest else None,
+                    "rest_after_exercise": {"until": "time", "seconds": 30},
+                }
+            ],
+        }
+    )
+
+
+def grouped_plan(name="Grouped Calendar Plan", kg=83):
+    return planned_workout_from_dict(
+        {
+            "schema_version": 1,
+            "key": f"calendar-{name.lower().replace(' ', '-')}",
+            "name": name,
+            "sport": "strength_training",
+            "exercises": [
+                {
+                    "name": "Romanian Deadlift",
+                    "sets": [
+                        {"reps": 10, "load": {"kind": "mass", "kg": kg, "basis": "total"}},
+                        {"reps": 10, "load": {"kind": "mass", "kg": kg, "basis": "total"}},
+                    ],
+                    "rest_between_sets": {"until": "time", "seconds": 165},
+                    "rest_after_exercise": {"until": "time", "seconds": 165},
                 }
             ],
         }
@@ -121,10 +143,12 @@ class FakeCalendarClient:
 
 class ProviderBoundaryCalendarClient(FakeCalendarClient):
     def upload_workout(self, payload):
+        from training_sync.garmin.workout_steps import decode_workout_steps
+
         assert payload["sportType"]["displayOrder"] == 4
         for segment in payload["workoutSegments"]:
             assert segment["sportType"]["displayOrder"] == 4
-            for step in segment["workoutSteps"]:
+            for step in decode_workout_steps(segment["workoutSteps"]).steps:
                 for field in (
                     "originalExerciseName",
                     "garminName",
@@ -347,6 +371,28 @@ def test_replace_clones_one_date_and_keeps_other_occurrences_and_template():
         "unitKey": "kilogram",
         "factor": 1000.0,
     }
+
+
+def test_replace_creates_and_verifies_grouped_date_specific_variant():
+    client = ProviderBoundaryCalendarClient()
+    schedule_existing(client, 900, "2026-09-13")
+    original_template = deepcopy(client.workouts[7])
+
+    result = replace_calendar_workout(
+        client,
+        900,
+        grouped_plan(kg=90),
+        authorized=True,
+        journal_path=None,
+    )
+
+    replacement = client.workouts[result.replacement_workout_id]
+    assert result.state == "verified"
+    assert replacement["workoutSegments"][0]["workoutSteps"][0]["type"] == "RepeatGroupDTO"
+    assert replacement["workoutSegments"][0]["workoutSteps"][0]["numberOfIterations"] == 2
+    assert replacement["workoutSegments"][0]["workoutSteps"][0]["workoutSteps"][0]["weightValue"] == 90
+    assert client.workouts[7] == original_template
+    assert 900 not in client.scheduled
 
 
 def test_replace_retry_reuses_existing_variant_after_original_removal_failure(tmp_path):

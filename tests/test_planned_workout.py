@@ -271,3 +271,205 @@ def test_boolean_is_not_accepted_as_numeric_value():
 def test_malformed_plan_date_is_rejected_without_becoming_schedule_date():
     with pytest.raises(PlannedWorkoutValidationError, match="date"):
         planned_workout_from_dict(strength_plan(date="2026-13-99"))
+
+
+def test_omitted_or_one_repeat_keeps_the_previous_physical_set_and_hash():
+    explicit = strength_plan(
+        exercises=[
+            {
+                "name": "Squat",
+                "sets": [
+                    {"reps": 5, "load": {"kind": "mass", "kg": 100, "basis": "total"}}
+                ],
+                "rest_between_sets": {"until": "time", "seconds": 120},
+                "rest_after_exercise": {"until": "time", "seconds": 120},
+            }
+        ]
+    )
+    compact_one = strength_plan(
+        exercises=[
+            {
+                "name": "Squat",
+                "sets": [
+                    {
+                        "repeat": 1,
+                        "reps": 5,
+                        "load": {"kind": "mass", "kg": 100, "basis": "total"},
+                    }
+                ],
+                "rest_between_sets": {"until": "time", "seconds": 120},
+                "rest_after_exercise": {"until": "time", "seconds": 120},
+            }
+        ]
+    )
+
+    parsed_explicit = planned_workout_from_dict(explicit)
+    parsed_compact = planned_workout_from_dict(compact_one)
+
+    assert len(parsed_compact.exercises[0].sets) == 1
+    assert parsed_compact.execution_dict() == parsed_explicit.execution_dict()
+    assert parsed_compact.execution_hash() == parsed_explicit.execution_hash()
+
+
+def test_positive_repeat_expands_consecutive_whole_sets_without_multiplying_reps_or_load():
+    parsed = planned_workout_from_dict(
+        strength_plan(
+            exercises=[
+                {
+                    "name": "Bench Press",
+                    "sets": [
+                        {"reps": 8, "load": {"kind": "mass", "kg": 53, "basis": "total"}},
+                        {
+                            "repeat": 3,
+                            "reps": 10,
+                            "load": {"kind": "mass", "kg": 60, "basis": "total"},
+                        },
+                    ],
+                    "rest_between_sets": {"until": "time", "seconds": 90},
+                    "rest_after_exercise": {"until": "time", "seconds": 90},
+                }
+            ]
+        )
+    )
+
+    assert [item.reps for item in parsed.exercises[0].sets] == [8, 10, 10, 10]
+    assert [item.load.kg for item in parsed.exercises[0].sets] == [53, 60, 60, 60]
+
+
+def test_mixed_explicit_and_repeated_entries_preserve_input_order():
+    parsed = planned_workout_from_dict(
+        strength_plan(
+            exercises=[
+                {
+                    "name": "Row",
+                    "sets": [
+                        {"reps": 5, "load": {"kind": "mass", "kg": 40, "basis": "total"}},
+                        {
+                            "repeat": 2,
+                            "reps": 12,
+                            "load": {"kind": "mass", "kg": 45, "basis": "total"},
+                        },
+                        {"reps": 8, "load": {"kind": "mass", "kg": 50, "basis": "total"}},
+                    ],
+                    "rest_between_sets": {"until": "time", "seconds": 75},
+                    "rest_after_exercise": {"until": "time", "seconds": 75},
+                }
+            ]
+        )
+    )
+
+    assert [item.reps for item in parsed.exercises[0].sets] == [5, 12, 12, 8]
+    assert [item.load.kg for item in parsed.exercises[0].sets] == [40, 45, 45, 50]
+
+
+@pytest.mark.parametrize(
+    "termination",
+    [
+        {"until": "time", "seconds": 48.5},
+        {"until": "lap"},
+    ],
+)
+def test_repeated_time_and_lap_entries_retain_termination_without_inventing_reps(termination):
+    parsed = planned_workout_from_dict(
+        strength_plan(
+            exercises=[
+                {
+                    "name": "Bilbo Press",
+                    "sets": [
+                        {
+                            "repeat": 2,
+                            "termination": termination,
+                            "load": {"kind": "mass", "kg": 50, "basis": "total"},
+                        }
+                    ],
+                    "rest_between_sets": {"until": "time", "seconds": 60},
+                    "rest_after_exercise": {"until": "time", "seconds": 60},
+                }
+            ]
+        )
+    )
+
+    sets = parsed.exercises[0].sets
+    assert len(sets) == 2
+    assert all(item.reps is None for item in sets)
+    assert [item.termination.to_dict() for item in sets] == [
+        {"until": "time", "seconds": 48.5}
+        if termination["until"] == "time"
+        else {"until": "lap"},
+        {"until": "time", "seconds": 48.5}
+        if termination["until"] == "time"
+        else {"until": "lap"},
+    ]
+
+
+def test_repeated_explicit_side_rounds_keep_complete_round_semantics():
+    parsed = planned_workout_from_dict(
+        strength_plan(
+            exercises=[
+                {
+                    "name": "Bulgarian Split Squat",
+                    "sets": [
+                        {
+                            "repeat": 2,
+                            "reps": 11,
+                            "load": {"kind": "mass", "kg": 12, "basis": "per_hand"},
+                        }
+                    ],
+                    "sides": ["left", "right"],
+                    "rest_between_sides": {"until": "time", "seconds": 60},
+                    "rest_between_sets": {"until": "time", "seconds": 90},
+                    "rest_after_exercise": {"until": "time", "seconds": 90},
+                }
+            ]
+        )
+    )
+
+    exercise = parsed.exercises[0]
+    assert len(exercise.sets) == 2
+    assert exercise.sides == ("left", "right")
+    assert exercise.rest_between_sides.to_dict() == {"until": "time", "seconds": 60}
+
+
+@pytest.mark.parametrize("repeat", [0, -1, 1.5, True, "2", None])
+def test_invalid_strength_repeat_is_rejected_with_a_field_specific_error(repeat):
+    with pytest.raises(PlannedWorkoutValidationError, match="repeat"):
+        planned_workout_from_dict(
+            strength_plan(
+                exercises=[
+                    {
+                        "name": "Squat",
+                        "sets": [
+                            {
+                                "repeat": repeat,
+                                "reps": 5,
+                                "load": {"kind": "bodyweight"},
+                            }
+                        ],
+                        "rest_between_sets": {"until": "time", "seconds": 90},
+                        "rest_after_exercise": {"until": "time", "seconds": 90},
+                    }
+                ]
+            )
+        )
+
+
+def test_aggregate_repeat_expansion_is_bounded_before_allocation():
+    with pytest.raises(PlannedWorkoutValidationError, match="expanded strength set limit"):
+        planned_workout_from_dict(
+            strength_plan(
+                exercises=[
+                    {
+                        "name": "Squat",
+                        "sets": [
+                            {
+                                "repeat": 1001,
+                                "reps": 5,
+                                "load": {"kind": "bodyweight"},
+                            }
+                        ],
+                        "rest_between_sets": {"until": "time", "seconds": 90},
+                        "rest_after_exercise": {"until": "time", "seconds": 90},
+                    }
+                ]
+            )
+        )

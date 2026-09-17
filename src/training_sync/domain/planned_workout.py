@@ -20,6 +20,8 @@ SUPPORTED_SCHEMA_VERSION = 1
 SUPPORTED_SPORTS = {"strength_training", "cycling", "running"}
 SUPPORTED_CONTEXTS = {"indoor", "outdoor"}
 SUPPORTED_ROLES = {"warmup", "work", "recovery", "cooldown", "other"}
+# This is a safety bound for source expansion, not a Garmin DTO/device limit.
+MAX_EXPANDED_STRENGTH_SETS = 1000
 
 
 class PlannedWorkoutValidationError(ValueError):
@@ -356,10 +358,48 @@ def _parse_exercises(raw: Any, path: str) -> tuple[PlannedExercise, ...]:
     values = _array(raw, path)
     if not values:
         raise PlannedWorkoutValidationError(f"{path} must not be empty")
-    return tuple(_parse_exercise(value, f"{path}[{index}]") for index, value in enumerate(values))
+    _validate_expanded_set_bound(values, path)
+    exercises: list[PlannedExercise] = []
+    expanded_count = 0
+    for index, value in enumerate(values):
+        exercise = _parse_exercise(
+            value,
+            f"{path}[{index}]",
+            expanded_count=expanded_count,
+        )
+        exercises.append(exercise)
+        expanded_count += len(exercise.sets)
+    return tuple(exercises)
 
 
-def _parse_exercise(raw: Any, path: str) -> PlannedExercise:
+def _validate_expanded_set_bound(values: list[Any], path: str) -> None:
+    """Check the aggregate repeat count before materializing physical sets."""
+
+    expanded_count = 0
+    for exercise_index, value in enumerate(values):
+        if not isinstance(value, dict) or not isinstance(value.get("sets"), list):
+            continue
+        for set_index, raw_set in enumerate(value["sets"]):
+            if not isinstance(raw_set, dict):
+                continue
+            repeat = _positive_int(
+                raw_set.get("repeat", 1),
+                f"{path}[{exercise_index}].sets[{set_index}].repeat",
+            )
+            expanded_count += repeat
+            if expanded_count > MAX_EXPANDED_STRENGTH_SETS:
+                raise PlannedWorkoutValidationError(
+                    f"expanded strength set limit of {MAX_EXPANDED_STRENGTH_SETS} "
+                    f"exceeded at {path}[{exercise_index}].sets"
+                )
+
+
+def _parse_exercise(
+    raw: Any,
+    path: str,
+    *,
+    expanded_count: int = 0,
+) -> PlannedExercise:
     obj = _object(raw, path)
     _fields(
         obj,
@@ -381,9 +421,20 @@ def _parse_exercise(raw: Any, path: str) -> PlannedExercise:
     sets_raw = _array(obj["sets"], f"{path}.sets")
     if not sets_raw:
         raise PlannedWorkoutValidationError(f"{path}.sets must not be empty")
-    sets = tuple(
+    parsed_sets = tuple(
         _parse_set(value, f"{path}.sets[{index}]")
         for index, value in enumerate(sets_raw)
+    )
+    exercise_expanded_count = sum(repeat for _, repeat in parsed_sets)
+    if expanded_count + exercise_expanded_count > MAX_EXPANDED_STRENGTH_SETS:
+        raise PlannedWorkoutValidationError(
+            f"expanded strength set limit of {MAX_EXPANDED_STRENGTH_SETS} "
+            f"exceeded at {path}.sets"
+        )
+    sets = tuple(
+        planned_set
+        for planned_set, repeat in parsed_sets
+        for _ in range(repeat)
     )
 
     rest_between_sets = _parse_rest_field(
@@ -417,14 +468,15 @@ def _parse_exercise(raw: Any, path: str) -> PlannedExercise:
     )
 
 
-def _parse_set(raw: Any, path: str) -> PlannedSet:
+def _parse_set(raw: Any, path: str) -> tuple[PlannedSet, int]:
     obj = _object(raw, path)
     _fields(
         obj,
-        {"reps", "termination", "load", "description"},
+        {"reps", "termination", "load", "description", "repeat"},
         path,
         required={"load"},
     )
+    repeat = _positive_int(obj.get("repeat", 1), f"{path}.repeat")
     has_reps = "reps" in obj
     has_termination = "termination" in obj
     if has_reps == has_termination:
@@ -444,11 +496,14 @@ def _parse_set(raw: Any, path: str) -> PlannedSet:
         )
 
     load = _parse_load(obj["load"], f"{path}.load")
-    return PlannedSet(
-        reps=reps,
-        termination=termination,
-        load=load,
-        description=_optional_text(obj.get("description"), f"{path}.description"),
+    return (
+        PlannedSet(
+            reps=reps,
+            termination=termination,
+            load=load,
+            description=_optional_text(obj.get("description"), f"{path}.description"),
+        ),
+        repeat,
     )
 
 

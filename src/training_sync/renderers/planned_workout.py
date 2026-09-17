@@ -14,7 +14,12 @@ def render_planned_workout(
     garmin_dict: Mapping[str, Mapping[str, Any]] | None = None,
     max_steps: int | None = None,
 ) -> str:
-    """Render the same projected sequence that publication will submit."""
+    """Render the expanded sequence and compact repeat layout for review.
+
+    The returned text is produced by the same projection used for Garmin
+    publication, so a compact payload never hides its physical sets or rests
+    from the user.
+    """
 
     return project_planned_workout(
         workout, garmin_dict=garmin_dict, max_steps=max_steps
