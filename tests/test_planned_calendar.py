@@ -119,6 +119,42 @@ class FakeCalendarClient:
             raise TimeoutError("remove response timed out")
 
 
+class ProviderBoundaryCalendarClient(FakeCalendarClient):
+    def upload_workout(self, payload):
+        assert payload["sportType"]["displayOrder"] == 4
+        for segment in payload["workoutSegments"]:
+            assert segment["sportType"]["displayOrder"] == 4
+            for step in segment["workoutSteps"]:
+                for field in (
+                    "originalExerciseName",
+                    "garminName",
+                    "repetitionCount",
+                    "weightBasis",
+                    "loadKind",
+                    "side",
+                ):
+                    assert field not in step
+                if step.get("weightValue") is not None:
+                    assert step["weightUnit"] == {
+                        "unitId": 8,
+                        "unitKey": "kilogram",
+                        "factor": 1000.0,
+                    }
+                assert step.get("preferredEndConditionUnit") is None
+        return super().upload_workout(payload)
+
+
+class ScheduleHttp500Error(RuntimeError):
+    status_code = 500
+
+    def __str__(self):
+        return (
+            "API Error 500 {'errorId': 'calendar-ref-500', "
+            "'error': 'MismatchedInputException', "
+            "'authorization': 'Bearer calendar-secret'}"
+        )
+
+
 def schedule_existing(client, schedule_id, date, workout_id=7):
     client.scheduled[schedule_id] = {
         "scheduleId": schedule_id,
@@ -218,6 +254,31 @@ def test_successful_calendar_mutation_records_atomic_local_state(tmp_path):
     assert all("source" not in entry for entry in entries)
 
 
+def test_calendar_schedule_failure_returns_safe_diagnostics(tmp_path):
+    class FailingScheduleClient(FakeCalendarClient):
+        def schedule_workout(self, workout_id, date):
+            self.schedule_calls += 1
+            raise ScheduleHttp500Error()
+
+    client = FailingScheduleClient()
+    result = schedule_calendar_workout(
+        client,
+        7,
+        "2026-09-13",
+        authorized=True,
+        journal_path=tmp_path / "journal.json",
+    )
+
+    assert result.state == "uncertain"
+    assert result.diagnostics == {
+        "stage": "schedule",
+        "http_status": 500,
+        "provider_error_type": "MismatchedInputException",
+        "reference_id": "calendar-ref-500",
+    }
+    assert "calendar-secret" not in (result.error or "")
+
+
 def test_remove_does_not_claim_absence_when_post_delete_readback_is_unavailable():
     client = FakeCalendarClient()
     schedule_existing(client, 900, "2026-09-13")
@@ -260,7 +321,7 @@ def test_remove_retry_reconciles_a_lost_delete_response_without_repeating_delete
 
 
 def test_replace_clones_one_date_and_keeps_other_occurrences_and_template():
-    client = FakeCalendarClient()
+    client = ProviderBoundaryCalendarClient()
     schedule_existing(client, 900, "2026-09-13")
     schedule_existing(client, 901, "2026-09-20")
     original_template = deepcopy(client.workouts[7])
@@ -280,7 +341,12 @@ def test_replace_clones_one_date_and_keeps_other_occurrences_and_template():
     assert 900 not in client.scheduled
     assert client.scheduled[901]["workoutId"] == 7
     assert client.workouts[7] == original_template
-    assert client.workouts[result.replacement_workout_id]["workoutSegments"][0]["workoutSteps"][0]["weightValue"] == 90000
+    assert client.workouts[result.replacement_workout_id]["workoutSegments"][0]["workoutSteps"][0]["weightValue"] == 90
+    assert client.workouts[result.replacement_workout_id]["workoutSegments"][0]["workoutSteps"][0]["weightUnit"] == {
+        "unitId": 8,
+        "unitKey": "kilogram",
+        "factor": 1000.0,
+    }
 
 
 def test_replace_retry_reuses_existing_variant_after_original_removal_failure(tmp_path):

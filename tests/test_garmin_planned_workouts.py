@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import pytest
 
 from training_sync.domain.planned_workout import planned_workout_from_dict
@@ -8,6 +11,13 @@ from training_sync.garmin.planned_workouts import (
     project_planned_workout,
 )
 from training_sync.renderers.planned_workout import render_planned_workout
+
+
+FIXTURES = Path(__file__).parent / "fixtures" / "garmin"
+
+
+def garmin_fixture(name):
+    return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
 def strength_plan(exercises, *, warmup=None):
@@ -90,10 +100,12 @@ def test_unilateral_sets_are_combined_by_default_and_rest_after_both_sides():
     rests = [step for step in projection.steps if step["stepType"]["stepTypeKey"] == "rest"]
 
     assert len(active) == 2
-    assert [step["repetitionCount"] for step in active] == [15, 15]
+    assert [step["endConditionValue"] for step in active] == [15, 15]
+    assert all(step["endCondition"]["conditionTypeKey"] == "reps" for step in active)
     assert all("both sides" in step["description"] for step in active)
-    assert [step["weightValue"] for step in active] == [12500, 12500]
-    assert [step["weightBasis"] for step in active] == ["per_hand", "per_hand"]
+    assert [step["weightValue"] for step in active] == [12.5, 12.5]
+    assert all(step["weightUnit"]["unitKey"] == "kilogram" for step in active)
+    assert all("12.5 kg per hand" in step["description"] for step in active)
     assert [step["endConditionValue"] for step in rests] == [75, 75]
 
 
@@ -115,7 +127,15 @@ def test_explicit_separate_side_rounds_include_side_and_side_rest():
 
     projection = project_planned_workout(plan)
 
-    assert [step["side"] for step in active_steps(projection)] == ["left", "right", "left", "right"]
+    assert [
+        "left side" in step["description"]
+        for step in active_steps(projection)
+    ] == [True, False, True, False]
+    assert [
+        "right side" in step["description"]
+        for step in active_steps(projection)
+    ] == [False, True, False, True]
+    assert all("side" not in step for step in active_steps(projection))
     assert [step["endConditionValue"] for step in projection.steps if step["stepType"]["stepTypeKey"] == "rest"] == [
         60,
         90,
@@ -176,10 +196,13 @@ def test_timed_and_manual_lap_sets_preserve_termination_and_load():
 
     assert active[0]["endCondition"]["conditionTypeKey"] == "time"
     assert active[0]["endConditionValue"] == 48.5
-    assert active[0]["weightValue"] == 50000
+    assert active[0]["weightValue"] == 50
+    assert active[0]["weightUnit"]["unitKey"] == "kilogram"
+    assert active[0]["preferredEndConditionUnit"] is None
     assert active[1]["endCondition"]["conditionTypeKey"] == "lap.button"
     assert active[1]["endConditionValue"] is None
-    assert active[1]["weightValue"] == 45000
+    assert active[1]["weightValue"] == 45
+    assert active[1]["weightUnit"]["unitKey"] == "kilogram"
 
 
 def test_explicit_substitute_exposes_original_and_catalog_identity():
@@ -202,7 +225,7 @@ def test_explicit_substitute_exposes_original_and_catalog_identity():
 
     assert step["exerciseName"] == "REVERSE_CRUNCH_ON_A_BENCH"
     assert step["category"] == "CRUNCH"
-    assert step["originalExerciseName"] == "Dragon Flag"
+    assert "originalExerciseName" not in step
     assert "Dragon Flag" in step["description"]
     assert "Reverse Crunch on a Bench" in step["description"]
 
@@ -484,3 +507,81 @@ def test_cycling_cadence_target_is_preserved_and_running_cadence_is_rejected():
                 ],
             }
         )
+
+
+def test_strength_payload_matches_accepted_provider_fixture():
+    plan = planned_workout_from_dict(
+        strength_plan(
+            [
+                {
+                    "name": "Squat",
+                    "sets": [{"reps": 8, "load": {"kind": "mass", "kg": 50, "basis": "total"}}],
+                    "rest_between_sets": None,
+                    "rest_after_exercise": None,
+                }
+            ]
+        )
+    )
+    expected = garmin_fixture("strength-payload-accepted.json")
+    projection = project_planned_workout(plan)
+    step = active_steps(projection)[0]
+
+    assert projection.payload["sportType"] == expected["sportType"]
+    assert step["endCondition"]["conditionTypeKey"] == expected["weightedStep"]["endCondition"]
+    assert step["endConditionValue"] == expected["weightedStep"]["endConditionValue"]
+    assert step["preferredEndConditionUnit"] == expected["weightedStep"]["preferredEndConditionUnit"]
+    assert step["weightValue"] == expected["weightedStep"]["weightValue"]
+    assert step["weightUnit"] == expected["weightedStep"]["weightUnit"]
+
+
+def test_strength_payload_does_not_use_rejected_wire_representation_or_adapter_fields():
+    plan = planned_workout_from_dict(
+        strength_plan(
+            [
+                {
+                    "name": "Squat",
+                    "sets": [{"reps": 8, "load": {"kind": "mass", "kg": 50, "basis": "total"}}],
+                    "rest_between_sets": None,
+                    "rest_after_exercise": None,
+                }
+            ]
+        )
+    )
+    rejected = garmin_fixture("strength-payload-rejected.json")
+    projection = project_planned_workout(plan)
+    step = active_steps(projection)[0]
+
+    assert {
+        key: step.get(key)
+        for key in rejected["weightedStep"]
+    } != rejected["weightedStep"]
+    for field in rejected["unsupportedFields"]:
+        assert field not in step
+
+
+def test_dragon_flag_uses_catalog_substitute_and_preserves_instruction_in_description():
+    plan = planned_workout_from_dict(
+        strength_plan(
+            [
+                {
+                    "name": "Dragon Flag",
+                    "garmin_name": "Reverse Crunch on a Bench",
+                    "sets": [{"reps": 8, "load": {"kind": "bodyweight"}}],
+                    "rest_between_sets": None,
+                    "rest_after_exercise": None,
+                }
+            ]
+        )
+    )
+    expected = garmin_fixture("strength-payload-accepted.json")["dragonFlagStep"]
+    step = active_steps(project_planned_workout(plan))[0]
+
+    assert step["category"] == expected["category"]
+    assert step["exerciseName"] == expected["exerciseName"]
+    assert step["endCondition"]["conditionTypeKey"] == expected["endCondition"]
+    assert step["endConditionValue"] == expected["endConditionValue"]
+    assert step["preferredEndConditionUnit"] is None
+    assert step["weightValue"] is None
+    assert step["weightUnit"] is None
+    assert "originalExerciseName" not in step
+    assert all(fragment in step["description"] for fragment in expected["descriptionIncludes"])

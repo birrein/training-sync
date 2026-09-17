@@ -1,0 +1,15 @@
+{
+  "weightedStep": {
+    "weightValue": 50000,
+    "weightUnit": "gram",
+    "preferredEndConditionUnit": "reps"
+  },
+  "unsupportedFields": [
+    "originalExerciseName",
+    "garminName",
+    "repetitionCount",
+    "weightBasis",
+    "loadKind",
+    "side"
+  ]
+}

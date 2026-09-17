@@ -1,0 +1,40 @@
+{
+  "workoutName": "Sanitized Strength Fixture",
+  "sportType": {
+    "sportTypeId": 5,
+    "sportTypeKey": "strength_training",
+    "displayOrder": 4
+  },
+  "workoutSegments": [
+    {
+      "segmentOrder": 1,
+      "workoutSteps": [
+        {
+          "type": "ExecutableStepDTO",
+          "stepType": {
+            "stepTypeId": 3,
+            "stepTypeKey": "interval",
+            "displayOrder": 3
+          },
+          "endCondition": {
+            "conditionTypeId": 10,
+            "conditionTypeKey": "reps",
+            "displayOrder": 10,
+            "displayable": true
+          },
+          "endConditionValue": 8,
+          "preferredEndConditionUnit": null,
+          "category": "LEGS",
+          "exerciseName": "SQUAT",
+          "weightValue": 50,
+          "weightUnit": {
+            "unitId": 8,
+            "unitKey": "kilogram",
+            "factor": 1000.0
+          },
+          "description": "Squat; 50 kg total; 8 reps"
+        }
+      ]
+    }
+  ]
+}

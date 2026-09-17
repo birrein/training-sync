@@ -28,6 +28,11 @@ from training_sync.garmin.planned_workouts import (
     GarminWorkoutProjection,
     project_planned_workout,
 )
+from training_sync.garmin.diagnostics import (
+    extract_provider_diagnostics,
+    format_provider_diagnostics,
+    sanitize_provider_diagnostics,
+)
 
 
 class PublicationError(RuntimeError):
@@ -55,6 +60,7 @@ class PublicationResult:
     preview: str | None = None
     error: str | None = None
     verification_errors: tuple[str, ...] = ()
+    diagnostics: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -108,6 +114,10 @@ def publish_workout(
     with _publication_lock(path, lock_key):
         journal = _Journal(path)
         entry = journal.get(lock_key)
+        prior_diagnostics = sanitize_provider_diagnostics(
+            entry.get("diagnostics") if entry else None
+        )
+        operation_diagnostics = prior_diagnostics
         execution_hash = normalized.execution_hash()
         if entry is not None and entry.get("execution_hash") != execution_hash:
             raise PublicationConflictError(
@@ -128,6 +138,7 @@ def publish_workout(
                 client,
                 projection,
                 marker,
+                diagnostics=prior_diagnostics,
             )
             if reconciliation.state == "uncertain":
                 _save_entry(
@@ -137,6 +148,7 @@ def publish_workout(
                     marker,
                     state="uncertain",
                     error=reconciliation.error,
+                    diagnostics=reconciliation.diagnostics,
                 )
                 return _result_with_reconciliation(
                     reconciliation,
@@ -146,6 +158,7 @@ def publish_workout(
                 )
             workout_id = reconciliation.workout_id
             reused = True
+            operation_diagnostics = reconciliation.diagnostics
             _save_entry(
                 journal,
                 lock_key,
@@ -180,6 +193,7 @@ def publish_workout(
                     preview=projection.preview,
                     error="; ".join(errors),
                     verification_errors=tuple(errors),
+                    diagnostics=operation_diagnostics,
                 )
             template_state = "verified"
         else:
@@ -209,7 +223,14 @@ def publish_workout(
                     desired_payload_hash=_payload_hash(payload),
                 )
             except Exception as exc:
-                reconciliation = _reconcile_upload(client, projection, marker)
+                diagnostics = extract_provider_diagnostics(exc, stage="upload")
+                operation_diagnostics = diagnostics
+                reconciliation = _reconcile_upload(
+                    client,
+                    projection,
+                    marker,
+                    diagnostics=diagnostics,
+                )
                 if reconciliation.state == "verified":
                     workout_id = reconciliation.workout_id
                     reused = True
@@ -220,11 +241,13 @@ def publish_workout(
                         marker,
                         state="uploaded",
                         workout_id=workout_id,
-                        error=f"upload response uncertain: {type(exc).__name__}",
+                        error=format_provider_diagnostics(diagnostics),
+                        diagnostics=diagnostics,
                     )
                 else:
                     message = (
                         f"upload outcome uncertain after {type(exc).__name__}: "
+                        f"{format_provider_diagnostics(diagnostics)}; "
                         f"{reconciliation.error}"
                     )
                     _save_entry(
@@ -234,6 +257,7 @@ def publish_workout(
                         marker,
                         state="uncertain",
                         error=message,
+                        diagnostics=diagnostics,
                     )
                     return PublicationResult(
                         state="uncertain",
@@ -244,6 +268,7 @@ def publish_workout(
                         marker=marker,
                         preview=projection.preview,
                         error=message,
+                        diagnostics=diagnostics,
                     )
 
             verification = _verify_remote_template(client, workout_id, projection)
@@ -268,6 +293,7 @@ def publish_workout(
                     preview=projection.preview,
                     error="; ".join(errors),
                     verification_errors=tuple(errors),
+                    diagnostics=operation_diagnostics,
                 )
             template_state = "verified"
             _save_entry(
@@ -289,6 +315,7 @@ def publish_workout(
                 reused=reused,
                 marker=marker,
                 preview=projection.preview,
+                diagnostics=operation_diagnostics,
             )
 
         prior_schedule_id = _value_or_none(entry.get("schedule_id")) if entry else None
@@ -307,6 +334,7 @@ def publish_workout(
                     reused=True,
                     marker=marker,
                     preview=projection.preview,
+                    diagnostics=operation_diagnostics,
                 )
 
         _save_entry(
@@ -326,6 +354,7 @@ def publish_workout(
             if schedule_id is None:
                 raise RuntimeError("Garmin returned no schedule ID for the requested date")
         except Exception as exc:
+            schedule_diagnostics = extract_provider_diagnostics(exc, stage="schedule")
             _save_entry(
                 journal,
                 lock_key,
@@ -334,7 +363,8 @@ def publish_workout(
                 state="schedule_failed",
                 workout_id=workout_id,
                 schedule_date=requested_date,
-                error=_safe_error(exc),
+                error=format_provider_diagnostics(schedule_diagnostics),
+                diagnostics=schedule_diagnostics,
             )
             return PublicationResult(
                 state="partial",
@@ -345,7 +375,8 @@ def publish_workout(
                 verified=True,
                 marker=marker,
                 preview=projection.preview,
-                error=_safe_error(exc),
+                error=format_provider_diagnostics(schedule_diagnostics),
+                diagnostics=schedule_diagnostics,
             )
 
         _save_entry(
@@ -386,6 +417,7 @@ def publish_workout(
                 preview=projection.preview,
                 error=error,
                 verification_errors=tuple(schedule_verification[1]),
+                diagnostics=operation_diagnostics,
             )
         _save_entry(
             journal,
@@ -409,6 +441,7 @@ def publish_workout(
             reused=reused,
             marker=marker,
             preview=projection.preview,
+            diagnostics=operation_diagnostics,
         )
 
 
@@ -487,6 +520,10 @@ def _compare_step(
         )
     if not _same_number(expected.get("endConditionValue"), actual.get("endConditionValue")):
         errors.append(f"step {index} termination value mismatch")
+    if expected.get("preferredEndConditionUnit") != actual.get(
+        "preferredEndConditionUnit"
+    ):
+        errors.append(f"step {index} preferred termination unit mismatch")
 
     expected_target = _nested_key(expected, "targetType", "workoutTargetTypeKey")
     actual_target = _nested_key(actual, "targetType", "workoutTargetTypeKey")
@@ -498,7 +535,7 @@ def _compare_step(
     if expected.get("targetValueUnit") != actual.get("targetValueUnit"):
         errors.append(f"step {index} target unit mismatch")
 
-    for key in ("category", "exerciseName", "repetitionCount"):
+    for key in ("category", "exerciseName"):
         if expected.get(key) != actual.get(key):
             errors.append(f"step {index} {key} mismatch")
     if not _same_weight(expected, actual):
@@ -508,6 +545,8 @@ def _compare_step(
     for key in ("weightBasis", "loadKind", "side"):
         expected_value = expected.get(key)
         actual_value = actual.get(key)
+        if expected_value is None:
+            continue
         if actual_value is None and expected_value is not None:
             if not _description_carries_semantic(
                 key, expected_value, expected_description, actual_description
@@ -563,14 +602,43 @@ def _same_weight(expected: Mapping[str, Any], actual: Mapping[str, Any]) -> bool
 
 
 def _weight_in_grams(value: Any, unit: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
     try:
         result = float(value)
     except (TypeError, ValueError):
         return None
-    unit_text = str(unit or "").lower()
-    if unit_text in {"kg", "kilogram", "kilograms"}:
-        result *= 1000
-    return result
+    if isinstance(unit, str):
+        unit_text = unit.strip().lower()
+        if unit_text in {"gram", "grams"}:
+            return result
+        if unit_text in {"kg", "kilogram", "kilograms"}:
+            return result * 1000
+        return None
+    if not isinstance(unit, Mapping):
+        return None
+
+    unit_key = unit.get("unitKey")
+    unit_key = unit_key.strip().lower() if isinstance(unit_key, str) else ""
+    unit_id = unit.get("unitId")
+    factor = unit.get("factor")
+    try:
+        factor_value = float(factor)
+    except (TypeError, ValueError):
+        return None
+
+    if unit_key in {"kilogram", "kilograms", "kg"}:
+        if unit_id != 8 or not math_close(factor_value, 1000.0):
+            return None
+        return result * 1000
+    if unit_key in {"gram", "grams", "g"}:
+        # Garmin's accepted kilogram DTO is identified by unitId 8.  The
+        # older gram representation is a string; only accept a structured
+        # gram object when it carries no contradictory provider ID.
+        if unit_id is not None or not math_close(factor_value, 1.0):
+            return None
+        return result
+    return None
 
 
 def math_close(left: float, right: float) -> bool:
@@ -581,7 +649,10 @@ def _reconcile_upload(
     client: Any,
     projection: GarminWorkoutProjection,
     marker: str,
+    *,
+    diagnostics: Mapping[str, Any] | None = None,
 ) -> PublicationResult:
+    safe_diagnostics = sanitize_provider_diagnostics(diagnostics)
     try:
         candidates, incomplete = _list_workouts(client)
     except Exception as exc:
@@ -590,6 +661,7 @@ def _reconcile_upload(
             template_state="uncertain",
             schedule_state="not_attempted",
             error=f"read-only reconciliation failed: {_safe_error(exc)}",
+            diagnostics=safe_diagnostics,
         )
     exact_ids: list[int | str] = []
     for candidate in candidates:
@@ -613,6 +685,7 @@ def _reconcile_upload(
             template_state="verified",
             schedule_state="not_requested",
             workout_id=exact_ids[0],
+            diagnostics=safe_diagnostics,
         )
     if len(exact_ids) == 0:
         reason = "no exact marker and semantic match found"
@@ -625,6 +698,7 @@ def _reconcile_upload(
         template_state="uncertain",
         schedule_state="not_attempted",
         error=reason,
+        diagnostics=safe_diagnostics,
     )
 
 
@@ -644,6 +718,7 @@ def _result_with_reconciliation(
         preview=projection.preview,
         error=reconciliation.error,
         verified=False,
+        diagnostics=reconciliation.diagnostics,
     )
 
 
@@ -746,6 +821,7 @@ def _save_entry(
     schedule_date: str | None = None,
     desired_payload_hash: str | None = None,
     error: str | None = None,
+    diagnostics: Mapping[str, Any] | None = None,
 ) -> None:
     existing = journal.get(key) or {}
     entry = {
@@ -768,6 +844,10 @@ def _save_entry(
         entry["error"] = error
     else:
         entry.pop("error", None)
+    if diagnostics is not None:
+        safe_diagnostics = sanitize_provider_diagnostics(diagnostics)
+        if safe_diagnostics is not None:
+            entry["diagnostics"] = safe_diagnostics
     journal.put(key, entry)
 
 

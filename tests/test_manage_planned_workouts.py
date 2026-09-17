@@ -8,6 +8,7 @@ import pytest
 from training_sync.domain.planned_workout import planned_workout_from_dict
 from training_sync.garmin.planned_workouts import project_planned_workout
 from training_sync.use_cases.manage_planned_workouts import (
+    ManagementError,
     RemotePermissionError,
     StaleBaselineError,
     UnsupportedRemoteStructureError,
@@ -94,6 +95,47 @@ class FakeManagementClient:
         }
 
 
+class ProviderBoundaryManagementClient(FakeManagementClient):
+    def _assert_provider_payload(self, payload):
+        assert payload["sportType"]["displayOrder"] == 4
+        for step in payload["workoutSegments"][0]["workoutSteps"]:
+            for field in (
+                "originalExerciseName",
+                "garminName",
+                "repetitionCount",
+                "weightBasis",
+                "loadKind",
+                "side",
+            ):
+                assert field not in step
+            if step.get("weightValue") is not None:
+                assert step["weightUnit"] == {
+                    "unitId": 8,
+                    "unitKey": "kilogram",
+                    "factor": 1000.0,
+                }
+            assert step.get("preferredEndConditionUnit") is None
+
+    def update_workout(self, workout_id, payload):
+        self._assert_provider_payload(payload)
+        return super().update_workout(workout_id, payload)
+
+    def upload_workout(self, payload):
+        self._assert_provider_payload(payload)
+        return super().upload_workout(payload)
+
+
+class ManagementHttp500Error(RuntimeError):
+    status_code = 500
+
+    def __str__(self):
+        return (
+            "API Error 500 {'errorId': 'manage-ref-500', "
+            "'error': 'MismatchedInputException', "
+            "'authorization': 'Bearer management-secret'}"
+        )
+
+
 def remote_plan(plan_name="Remote Plan"):
     payload = project_planned_workout(plan(plan_name)).payload
     payload["workoutId"] = 7
@@ -147,7 +189,12 @@ def test_update_preserves_unrelated_remote_fields_and_verifies_template_scope():
     assert result.scope == "template"
     assert saved["author"] == {"name": "manual owner"}
     assert saved["unrelatedMetadata"] == {"keep": True}
-    assert saved["workoutSegments"][0]["workoutSteps"][0]["weightValue"] == 90000
+    assert saved["workoutSegments"][0]["workoutSteps"][0]["weightValue"] == 90
+    assert saved["workoutSegments"][0]["workoutSteps"][0]["weightUnit"] == {
+        "unitId": 8,
+        "unitKey": "kilogram",
+        "factor": 1000.0,
+    }
 
 
 def test_update_rejects_unsupported_repeat_structure_without_mutation():
@@ -188,6 +235,115 @@ def test_update_rejects_stale_baseline_before_remote_mutation():
             journal_path=None,
         )
     assert client.update_calls == 0
+
+
+def test_update_removes_legacy_adapter_fields_before_provider_write():
+    remote = remote_plan()
+    for step in remote["workoutSegments"][0]["workoutSteps"]:
+        if step.get("weightValue") is not None:
+            step["weightValue"] *= 1000
+            step["weightUnit"] = "gram"
+        step["preferredEndConditionUnit"] = "repetitions"
+        step.update(
+            {
+                "originalExerciseName": "legacy source label",
+                "garminName": "legacy provider label",
+                "repetitionCount": 10,
+                "weightBasis": "total",
+                "loadKind": "mass",
+                "side": "left",
+            }
+        )
+    client = ProviderBoundaryManagementClient({7: remote})
+    baseline = client.get_workout_by_id(7)
+
+    result = update_workout(
+        client,
+        7,
+        plan(kg=90),
+        authorized=True,
+        baseline=baseline,
+        journal_path=None,
+    )
+
+    assert result.state == "verified"
+    saved = client.workouts[7]["workoutSegments"][0]["workoutSteps"][0]
+    assert saved["weightValue"] == 90
+    assert saved["weightUnit"]["unitKey"] == "kilogram"
+    assert all(
+        field not in saved
+        for field in (
+            "originalExerciseName",
+            "garminName",
+            "repetitionCount",
+            "weightBasis",
+            "loadKind",
+            "side",
+        )
+    )
+
+
+def test_duplicate_sanitizes_legacy_provider_fields_before_upload():
+    remote = remote_plan()
+    for step in remote["workoutSegments"][0]["workoutSteps"]:
+        if step.get("weightValue") is not None:
+            step["weightValue"] *= 1000
+            step["weightUnit"] = "gram"
+        step.update(
+            {
+                "originalExerciseName": "legacy source label",
+                "garminName": "legacy provider label",
+                "repetitionCount": 10,
+                "weightBasis": "total",
+                "loadKind": "mass",
+                "side": "left",
+            }
+        )
+    client = ProviderBoundaryManagementClient({7: remote})
+
+    result = duplicate_workout(
+        client,
+        7,
+        name="Sanitized Copy",
+        authorized=True,
+        journal_path=None,
+    )
+
+    assert result.state == "verified"
+    copied = client.workouts[result.workout_id]["workoutSegments"][0]["workoutSteps"][0]
+    assert copied["weightValue"] == 83
+    assert copied["weightUnit"]["unitKey"] == "kilogram"
+
+
+def test_update_journal_keeps_safe_provider_diagnostics_on_http_failure(tmp_path):
+    class FailingUpdateClient(ProviderBoundaryManagementClient):
+        def update_workout(self, workout_id, payload):
+            raise ManagementHttp500Error()
+
+    client = FailingUpdateClient({7: remote_plan()})
+    baseline = client.get_workout_by_id(7)
+    journal_path = tmp_path / "journal.json"
+
+    with pytest.raises(ManagementError):
+        update_workout(
+            client,
+            7,
+            plan(kg=90),
+            authorized=True,
+            baseline=baseline,
+            journal_path=journal_path,
+        )
+
+    document = json.loads(journal_path.read_text(encoding="utf-8"))
+    entry = next(iter(document["entries"].values()))
+    assert entry["diagnostics"] == {
+        "stage": "update",
+        "http_status": 500,
+        "provider_error_type": "MismatchedInputException",
+        "reference_id": "manage-ref-500",
+    }
+    journal_text = journal_path.read_text(encoding="utf-8")
+    assert "management-secret" not in journal_text
 
 
 def test_duplicate_creates_verified_new_template_without_touching_original():

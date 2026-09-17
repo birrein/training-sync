@@ -261,13 +261,18 @@ training-sync garmin workout preview examples/planned-cycling.json
 training-sync garmin workout preview examples/planned-running-power.json
 ```
 
-The preview is the exact flattened sequence submitted to Garmin: warm-up,
+The preview is the exact executable sequence submitted to Garmin: warm-up,
 work, recovery, cooldown, exercise identity, reps/time/distance/lap
-termination, rests, bodyweight, total/per-hand load, and target bounds. An
-explicit `garmin_name` is assistant-prepared and user-authorized; it is not
-read from the vault or inferred from source prose. Resolution uses existing
-mapping/alias precedence before an exact catalog entry, and conflicting or
-unknown identities stop the operation.
+termination, rests, bodyweight, total/per-hand load, and target bounds. The
+transport boundary sends mass as a numeric kilogram value plus Garmin's
+structured kilogram unit, uses `null` for preferred strength termination units,
+and removes adapter-only fields from the provider DTO. Original exercise names,
+substitutions such as Dragon Flag -> Reverse Crunch on a Bench, and per-hand
+instructions remain in descriptions. Cycling and running keep their own
+termination and target units. An explicit `garmin_name` is assistant-prepared
+and user-authorized; it is not read from the vault or inferred from source
+prose. Resolution uses existing mapping/alias precedence before an exact
+catalog entry, and conflicting or unknown identities stop the operation.
 
 Create a reusable template, optionally scheduling it on an explicit local
 calendar date:
@@ -283,7 +288,15 @@ the exact calendar occurrence back afterward. The local journal under
 `~/.config/training-sync/planned-workouts.json` records account-scoped content
 hashes, IDs, and recoverable states; it does not contain source prose,
 credentials, or vault paths. A changed plan under the same key is a conflict,
-and an uncertain upload is reconciled read-only before any retry.
+and an uncertain upload is reconciled read-only before any retry. If Garmin
+returns an HTTP error, the result reports only bounded fields such as the
+operation stage, HTTP status, provider error type, and provider reference ID;
+the journal never stores request bodies, headers, tokens, or arbitrary
+exception text. For example, `HTTP 500 / MismatchedInputException` means the
+write outcome is uncertain, not that the template is absent. Keep the same
+plan key and journal entry, inspect the reported diagnostic and reconciliation
+state, and retry only through the normal command; do not clear the journal or
+create a new key to force another upload.
 
 Template and occurrence management are separate:
 

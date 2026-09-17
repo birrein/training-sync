@@ -1,0 +1,31 @@
+{
+  "sportType": {
+    "sportTypeId": 5,
+    "sportTypeKey": "strength_training",
+    "displayOrder": 4
+  },
+  "weightedStep": {
+    "endCondition": "reps",
+    "endConditionValue": 8,
+    "preferredEndConditionUnit": null,
+    "weightValue": 50,
+    "weightUnit": {
+      "unitId": 8,
+      "unitKey": "kilogram",
+      "factor": 1000.0
+    }
+  },
+  "dragonFlagStep": {
+    "category": "CRUNCH",
+    "exerciseName": "REVERSE_CRUNCH_ON_A_BENCH",
+    "endCondition": "reps",
+    "endConditionValue": 8,
+    "preferredEndConditionUnit": null,
+    "weightValue": null,
+    "weightUnit": null,
+    "descriptionIncludes": [
+      "Dragon Flag",
+      "Reverse Crunch on a Bench"
+    ]
+  }
+}

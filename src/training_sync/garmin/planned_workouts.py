@@ -9,6 +9,7 @@ training record.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 import math
 from typing import Any, Mapping
@@ -33,6 +34,25 @@ from training_sync.garmin.exercise_mapping import (
 
 
 GRAMS_PER_KG = 1000.0
+
+GARMIN_KILOGRAM_UNIT: dict[str, Any] = {
+    "unitId": 8,
+    "unitKey": "kilogram",
+    "factor": 1000.0,
+}
+
+_INTERNAL_STEP_FIELDS = frozenset(
+    {
+        "originalExerciseName",
+        "garminName",
+        "repetitionCount",
+        "weightBasis",
+        "loadKind",
+        "side",
+    }
+)
+
+_DEFAULT_PREFERRED_END_CONDITION_UNIT = object()
 
 
 class ExerciseResolutionError(ValueError):
@@ -73,7 +93,7 @@ _SPORT_TYPES: dict[str, dict[str, Any]] = {
     "strength_training": {
         "sportTypeId": 5,
         "sportTypeKey": "strength_training",
-        "displayOrder": 5,
+        "displayOrder": 4,
     },
 }
 
@@ -216,6 +236,7 @@ def project_planned_workout(
                     order=0,
                     step_type=workout.warmup.role,
                     description=workout.warmup.description or "Warm-up",
+                    preferred_end_condition_unit=None,
                 )
             )
         for index, exercise in enumerate(workout.exercises):
@@ -281,11 +302,6 @@ def project_planned_workout(
         ],
         "description": description,
     }
-    if workout.context is not None:
-        # Garmin has no portable "indoor" boolean in the workout DTO.  Keep
-        # it visible in the provider description so the distinction is not
-        # silently lost; actual device interpretation remains unverified.
-        payload["context"] = workout.context
     return GarminWorkoutProjection(
         payload=payload,
         steps=steps,
@@ -434,22 +450,14 @@ def _strength_step(
         step_type="interval",
         termination=termination,
         description="; ".join(part for part in description_parts if part),
+        preferred_end_condition_unit=None,
     )
     step.update(
         {
             "category": mapping.get("category"),
             "exerciseName": mapping.get("name"),
-            "originalExerciseName": exercise.name,
-            "garminName": resolution.selected_name,
-            "repetitionCount": (
-                int(termination.value)
-                if termination.until == "reps" and termination.value is not None
-                else None
-            ),
             "weightValue": _weight_value(planned_set.load),
-            "weightUnit": "gram" if planned_set.load.kind == "mass" else None,
-            "weightBasis": planned_set.load.basis,
-            "loadKind": planned_set.load.kind,
+            "weightUnit": _weight_unit(planned_set.load),
         }
     )
     if side is not None:
@@ -468,6 +476,7 @@ def _rest_step(
         step_type="rest",
         termination=termination,
         description=description,
+        preferred_end_condition_unit=None,
     )
     step.update(
         {
@@ -475,8 +484,6 @@ def _rest_step(
             "exerciseName": None,
             "weightValue": None,
             "weightUnit": None,
-            "weightBasis": None,
-            "loadKind": None,
         }
     )
     return step
@@ -488,6 +495,7 @@ def _endurance_step(
     order: int,
     step_type: str,
     description: str,
+    preferred_end_condition_unit: str | None | object = _DEFAULT_PREFERRED_END_CONDITION_UNIT,
 ) -> dict[str, Any]:
     step = _base_step(
         order=order,
@@ -495,18 +503,14 @@ def _endurance_step(
         termination=planned_step.termination,
         description=description,
         target=planned_step.target,
+        preferred_end_condition_unit=preferred_end_condition_unit,
     )
     step.update(
         {
             "category": "CARDIO",
             "exerciseName": None,
-            "originalExerciseName": None,
-            "garminName": None,
-            "repetitionCount": None,
             "weightValue": None,
             "weightUnit": None,
-            "weightBasis": None,
-            "loadKind": None,
         }
     )
     return step
@@ -519,11 +523,17 @@ def _base_step(
     termination: Termination,
     description: str,
     target: TargetSpec | None = None,
+    preferred_end_condition_unit: str | None | object = _DEFAULT_PREFERRED_END_CONDITION_UNIT,
 ) -> dict[str, Any]:
     if step_type not in _STEP_TYPES:
         raise ValueError(f"unsupported Garmin step role '{step_type}'")
     condition = dict(_CONDITIONS[termination.until])
     target_data = _target_data(target)
+    preferred_unit = (
+        termination.unit
+        if preferred_end_condition_unit is _DEFAULT_PREFERRED_END_CONDITION_UNIT
+        else preferred_end_condition_unit
+    )
     return {
         "type": "ExecutableStepDTO",
         "stepOrder": order,
@@ -532,7 +542,7 @@ def _base_step(
         "description": description,
         "endCondition": condition,
         "endConditionValue": _provider_value(termination),
-        "preferredEndConditionUnit": termination.unit,
+        "preferredEndConditionUnit": preferred_unit,
         "endConditionCompare": None,
         "targetType": target_data["targetType"],
         "targetValueOne": target_data["targetValueOne"],
@@ -560,10 +570,28 @@ def _target_data(target: TargetSpec | None) -> dict[str, Any]:
 def _reorder_steps(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     for order, step in enumerate(steps, start=1):
-        copied = dict(step)
+        copied = _provider_safe_step(step)
         copied["stepOrder"] = order
         result.append(copied)
     return result
+
+
+def _provider_safe_step(step: Mapping[str, Any]) -> dict[str, Any]:
+    """Remove adapter-only fields, including from supported nested children."""
+
+    copied: dict[str, Any] = {}
+    for key, value in step.items():
+        if key in _INTERNAL_STEP_FIELDS:
+            continue
+        if key == "workoutSteps" and isinstance(value, list):
+            copied[key] = [
+                _provider_safe_step(child)
+                for child in value
+                if isinstance(child, Mapping)
+            ]
+            continue
+        copied[key] = deepcopy(value)
+    return copied
 
 
 def _resolve_custom_mapping(name: str) -> dict[str, Any] | None:
@@ -668,7 +696,15 @@ def _weight_value(load: LoadSpec) -> float | None:
         return None
     if load.kg is None:
         raise ValueError("mass load is missing kilograms")
-    return _number_or_int(load.kg * GRAMS_PER_KG)
+    return _number_or_int(load.kg)
+
+
+def _weight_unit(load: LoadSpec) -> dict[str, Any] | None:
+    if load.kind == "bodyweight":
+        return None
+    if load.kg is None:
+        raise ValueError("mass load is missing kilograms")
+    return dict(GARMIN_KILOGRAM_UNIT)
 
 
 def _provider_value(termination: Termination) -> float | int | None:
@@ -771,7 +807,12 @@ def _preview(
         if condition == "lap.button":
             termination = "manual lap"
         else:
-            termination = f"{_format_number(value)} {step['preferredEndConditionUnit']}"
+            unit = step.get("preferredEndConditionUnit") or {
+                "reps": "reps",
+                "time": "seconds",
+                "distance": "meters",
+            }.get(condition, "")
+            termination = f"{_format_number(value)} {unit}".rstrip()
         target = step.get("targetValueUnit")
         if target:
             lower = step.get("targetValueOne")

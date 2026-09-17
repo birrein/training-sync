@@ -18,8 +18,14 @@ from typing import Any, Iterable, Mapping
 from training_sync.config import planned_workout_journal_path
 from training_sync.domain.planned_workout import PlannedWorkout
 from training_sync.garmin.planned_workouts import (
+    GARMIN_KILOGRAM_UNIT,
     GarminWorkoutProjection,
     project_planned_workout,
+)
+from training_sync.garmin.diagnostics import (
+    extract_provider_diagnostics,
+    format_provider_diagnostics,
+    sanitize_provider_diagnostics,
 )
 from training_sync.use_cases.publish_workout import (
     _calendar_items,
@@ -28,6 +34,8 @@ from training_sync.use_cases.publish_workout import (
     _extract_workout_id,
     _Journal,
     _publication_lock,
+    _same_weight,
+    _weight_in_grams,
     _workout_items,
     verify_saved_workout,
     publish_workout,
@@ -62,6 +70,16 @@ class ScheduleNotFoundError(CalendarOperationError):
     """An exact schedule ID is confirmed absent."""
 
 
+_UNSUPPORTED_GENERATED_STEP_FIELDS = (
+    "originalExerciseName",
+    "garminName",
+    "repetitionCount",
+    "weightBasis",
+    "loadKind",
+    "side",
+)
+
+
 @dataclass(frozen=True)
 class WorkoutInventory:
     items: tuple[dict[str, Any], ...]
@@ -79,6 +97,7 @@ class ManagementResult:
     diff: dict[str, Any] | None = None
     preserved_fields: tuple[str, ...] = ()
     error: str | None = None
+    diagnostics: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -102,6 +121,7 @@ class CalendarResult:
     date: str | None = None
     reused: bool = False
     error: str | None = None
+    diagnostics: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -233,13 +253,15 @@ def update_workout(
                     f"Garmin workout {workout_id} update verification failed: {'; '.join(errors)}"
                 )
         except Exception as exc:
+            diagnostics = extract_provider_diagnostics(exc, stage="update")
             _record_calendar_state(
                 path,
                 key,
                 operation="update",
                 state="uncertain",
                 workout_id=workout_id,
-                error=type(exc).__name__,
+                error=format_provider_diagnostics(diagnostics),
+                diagnostics=diagnostics,
             )
             raise
         _record_calendar_state(
@@ -279,6 +301,7 @@ def duplicate_workout(
     desired["workoutName"] = name.strip()
     desired.pop("workoutId", None)
     desired.pop("id", None)
+    desired = _sanitize_provider_payload(desired)
     if not authorized:
         return ManagementResult(
             state="preview",
@@ -314,13 +337,15 @@ def duplicate_workout(
                     f"Garmin duplicate {new_id} failed read-back verification"
                 )
         except Exception as exc:
+            diagnostics = extract_provider_diagnostics(exc, stage="duplicate")
             _record_calendar_state(
                 path,
                 key,
                 operation="duplicate",
                 state="uncertain",
                 workout_id=locals().get("new_id"),
-                error=type(exc).__name__,
+                error=format_provider_diagnostics(diagnostics),
+                diagnostics=diagnostics,
             )
             raise
         _record_calendar_state(
@@ -508,6 +533,8 @@ def _merge_supported_update(
                 "changing the number of executable steps is unsafe for a template update"
             )
         merged_segment = deepcopy(dict(current_segment))
+        if "sportType" in desired_segment:
+            merged_segment["sportType"] = deepcopy(desired_segment["sportType"])
         merged_steps = []
         for current_step, desired_step in zip(current_steps, desired_steps):
             if not isinstance(current_step, Mapping) or not isinstance(desired_step, Mapping):
@@ -522,7 +549,7 @@ def _merge_supported_update(
         merged_segment["workoutSteps"] = merged_steps
         merged_segments.append(merged_segment)
     result["workoutSegments"] = merged_segments
-    return result
+    return _sanitize_provider_payload(result)
 
 
 def _assert_editable_structure(payload: Mapping[str, Any]) -> None:
@@ -558,14 +585,8 @@ def _editable_step_fields() -> tuple[str, ...]:
         "targetValueUnit",
         "category",
         "exerciseName",
-        "originalExerciseName",
-        "garminName",
-        "repetitionCount",
         "weightValue",
         "weightUnit",
-        "weightBasis",
-        "loadKind",
-        "side",
     )
 
 
@@ -578,7 +599,7 @@ def _describe_diff(current: Mapping[str, Any], desired: Mapping[str, Any]) -> di
     current_steps = _steps(current)
     desired_steps = _steps(desired)
     for index, (old, new) in enumerate(zip(current_steps, desired_steps), start=1):
-        for key in ("endCondition", "endConditionValue", "targetType", "targetValueOne", "targetValueTwo", "targetValueUnit", "weightValue", "weightUnit", "weightBasis", "side", "repetitionCount"):
+        for key in ("endCondition", "endConditionValue", "preferredEndConditionUnit", "targetType", "targetValueOne", "targetValueTwo", "targetValueUnit", "weightValue", "weightUnit"):
             if old.get(key) != new.get(key):
                 changed.append(f"step[{index}].{key}")
     return {"changed": changed, "scope": "template"}
@@ -660,6 +681,68 @@ def _upload_remote_workout(client: Any, payload: Mapping[str, Any]) -> Any:
     return method(dict(payload))
 
 
+def _sanitize_provider_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize known legacy step fields without dropping unrelated metadata."""
+
+    result = deepcopy(dict(payload))
+    sport_type = result.get("sportType")
+    is_strength = (
+        isinstance(sport_type, Mapping)
+        and sport_type.get("sportTypeKey") == "strength_training"
+    )
+    if is_strength and isinstance(sport_type, Mapping):
+        normalized_sport_type = dict(sport_type)
+        normalized_sport_type["displayOrder"] = 4
+        result["sportType"] = normalized_sport_type
+
+    segments = result.get("workoutSegments")
+    if not isinstance(segments, list):
+        return result
+    for segment in segments:
+        if not isinstance(segment, Mapping):
+            continue
+        if is_strength and isinstance(segment, dict):
+            segment_sport_type = segment.get("sportType")
+            if isinstance(segment_sport_type, Mapping):
+                normalized_segment_sport_type = dict(segment_sport_type)
+                normalized_segment_sport_type["displayOrder"] = 4
+                segment["sportType"] = normalized_segment_sport_type
+        steps = segment.get("workoutSteps")
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if isinstance(step, dict):
+                _sanitize_provider_step(step, is_strength=is_strength)
+    return result
+
+
+def _sanitize_provider_step(step: dict[str, Any], *, is_strength: bool) -> None:
+    for field in _UNSUPPORTED_GENERATED_STEP_FIELDS:
+        step.pop(field, None)
+    if is_strength:
+        step["preferredEndConditionUnit"] = None
+
+    weight_value = step.get("weightValue")
+    if weight_value is not None:
+        grams = _weight_in_grams(weight_value, step.get("weightUnit"))
+        if grams is None:
+            raise UnsupportedRemoteStructureError(
+                "workout step has an unknown or contradictory weight unit"
+            )
+        step["weightValue"] = _number_or_int(grams / 1000.0)
+        step["weightUnit"] = dict(GARMIN_KILOGRAM_UNIT)
+
+    children = step.get("workoutSteps")
+    if isinstance(children, list):
+        for child in children:
+            if isinstance(child, dict):
+                _sanitize_provider_step(child, is_strength=is_strength)
+
+
+def _number_or_int(value: float) -> float | int:
+    return int(value) if float(value).is_integer() else float(value)
+
+
 def _duplicate_matches(
     expected: Mapping[str, Any],
     saved: Mapping[str, Any],
@@ -676,19 +759,18 @@ def _duplicate_matches(
             "stepType",
             "endCondition",
             "endConditionValue",
+            "preferredEndConditionUnit",
             "targetType",
             "targetValueOne",
             "targetValueTwo",
             "targetValueUnit",
             "category",
             "exerciseName",
-            "weightValue",
-            "weightUnit",
-            "weightBasis",
-            "side",
         ):
             if old.get(key) != new.get(key):
                 return False
+        if not _same_weight(old, new):
+            return False
     return True
 
 
@@ -887,6 +969,7 @@ def _schedule_calendar_authorized(
         if schedule_id is None:
             raise CalendarOperationError("Garmin returned no schedule ID")
     except Exception as exc:
+        diagnostics = extract_provider_diagnostics(exc, stage="schedule")
         try:
             matches = _calendar_matches(client, workout_id, requested)
         except Exception as reconcile_exc:
@@ -897,7 +980,11 @@ def _schedule_calendar_authorized(
                 state="uncertain",
                 workout_id=workout_id,
                 schedule_date=requested,
-                error=type(reconcile_exc).__name__,
+                error=(
+                    f"{format_provider_diagnostics(diagnostics)}; "
+                    f"reconciliation={type(reconcile_exc).__name__}"
+                ),
+                diagnostics=diagnostics,
             )
             return CalendarResult(
                 state="uncertain",
@@ -907,6 +994,7 @@ def _schedule_calendar_authorized(
                     "calendar scheduling outcome uncertain; reconciliation failed: "
                     f"{type(reconcile_exc).__name__}"
                 ),
+                diagnostics=diagnostics,
             )
         if len(matches) == 1:
             schedule_id = _extract_schedule_id(matches[0])
@@ -936,13 +1024,18 @@ def _schedule_calendar_authorized(
             state="uncertain",
             workout_id=workout_id,
             schedule_date=requested,
-            error=f"{type(exc).__name__}",
+            error=format_provider_diagnostics(diagnostics),
+            diagnostics=diagnostics,
         )
         return CalendarResult(
             state="uncertain",
             workout_id=workout_id,
             date=requested,
-            error=f"calendar scheduling outcome uncertain: {type(exc).__name__}",
+            error=(
+                f"calendar scheduling outcome uncertain: "
+                f"{format_provider_diagnostics(diagnostics)}"
+            ),
+            diagnostics=diagnostics,
         )
     verified, errors = _verify_calendar_entry(client, schedule_id, workout_id, requested)
     if not verified:
@@ -1606,6 +1699,7 @@ def _record_calendar_state(
     schedule_id: int | str | None = None,
     schedule_date: str | None = None,
     error: str | None = None,
+    diagnostics: Mapping[str, Any] | None = None,
 ) -> None:
     if path is None:
         return
@@ -1622,4 +1716,8 @@ def _record_calendar_state(
         entry["error"] = error
     else:
         entry.pop("error", None)
+    if diagnostics is not None:
+        safe_diagnostics = sanitize_provider_diagnostics(diagnostics)
+        if safe_diagnostics is not None:
+            entry["diagnostics"] = safe_diagnostics
     journal.put(key, entry)
