@@ -217,6 +217,69 @@ def test_schedule_retry_reuses_exact_existing_occurrence():
     assert client.schedule_calls == 0
 
 
+class MonthlyCalendarClient(FakeCalendarClient):
+    """Sanitized Garmin monthly envelope, including non-workout entries."""
+
+    def get_scheduled_workouts(self, year, month):
+        assert (year, month) == (2026, 9)
+        return {
+            "startDayOfMonth": 2,
+            "numOfDaysInMonth": 30,
+            "numOfDaysInPrevMonth": 31,
+            "year": 2026,
+            "month": 8,
+            "calendarItems": [
+                {"id": 41, "itemType": "weight", "date": "2026-09-13", "workoutId": None},
+                {"id": 42, "itemType": "activity", "date": "2026-09-13", "workoutId": 7},
+                *[
+                    {"id": entry["scheduleId"], "itemType": "workout",
+                     "date": entry["date"], "workoutId": entry["workoutId"],
+                     "title": "Scheduled strength"}
+                    for entry in self.scheduled.values()
+                ],
+            ],
+        }
+
+
+def test_monthly_calendar_items_lists_only_scheduled_workouts_in_range():
+    client = MonthlyCalendarClient()
+    schedule_existing(client, 900, "2026-09-13")
+    schedule_existing(client, 901, "2026-09-13")
+    schedule_existing(client, 902, "2026-09-14")
+
+    inventory = list_calendar(client, "2026-09-13", "2026-09-13")
+
+    assert [entry["id"] for entry in inventory.items] == [900, 901]
+    assert [entry["workoutId"] for entry in inventory.items] == [7, 7]
+    assert not inventory.incomplete
+
+
+def test_monthly_calendar_retry_reuses_occurrence_without_scheduling_again():
+    client = MonthlyCalendarClient()
+    schedule_existing(client, 900, "2026-09-13")
+
+    result = schedule_calendar_workout(
+        client, 7, "2026-09-13", authorized=True, journal_path=None,
+    )
+
+    assert result.state == "verified"
+    assert result.schedule_id == 900
+    assert result.reused
+    assert client.schedule_calls == 0
+
+
+def test_monthly_calendar_ambiguous_occurrences_block_new_schedule():
+    client = MonthlyCalendarClient()
+    schedule_existing(client, 900, "2026-09-13")
+    schedule_existing(client, 901, "2026-09-13")
+
+    with pytest.raises(CalendarOperationError, match="multiple exact"):
+        schedule_calendar_workout(
+            client, 7, "2026-09-13", authorized=True, journal_path=None,
+        )
+    assert client.schedule_calls == 0
+
+
 def test_move_adds_and_verifies_destination_then_removes_only_original():
     client = FakeCalendarClient()
     schedule_existing(client, 900, "2026-09-13")

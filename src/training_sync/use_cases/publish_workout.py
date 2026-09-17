@@ -1057,6 +1057,13 @@ def _calendar_items(value: Any) -> Iterable[Mapping[str, Any]]:
     if isinstance(value, list):
         return (item for item in value if isinstance(item, Mapping))
     if isinstance(value, Mapping):
+        # The monthly endpoint mixes workouts with activities, weight entries
+        # and other events. Only planned workouts carry schedule identities.
+        if isinstance(value.get("calendarItems"), list):
+            return (
+                item for item in value["calendarItems"]
+                if isinstance(item, Mapping) and item.get("itemType") == "workout"
+            )
         for key in ("scheduledWorkouts", "workouts", "items", "results", "data"):
             items = value.get(key)
             if isinstance(items, list):
