@@ -4,6 +4,7 @@ import argparse
 from collections.abc import Sequence
 from dataclasses import asdict
 from datetime import date as calendar_date
+from datetime import time as clock_time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from importlib.metadata import PackageNotFoundError, version as distribution_version
 import json
@@ -26,6 +27,7 @@ from training_sync.intervals.client import IntervalsClient, IntervalsError
 from training_sync.garmin.auth import get_client
 from training_sync.garmin.fetch import fetch_and_print_activities
 from training_sync.garmin.import_strength import parse_workout, push_workout
+from training_sync.garmin.nutrition import log_foods, parse_food_item
 from training_sync.garmin.planned_workouts import project_planned_workout
 from training_sync.garmin.weight import print_weight_tag
 from training_sync.use_cases.manage_planned_workouts import (
@@ -103,6 +105,13 @@ def _add_modern_subcommands(parser: argparse.ArgumentParser) -> None:
 
     garmin_weight = garmin_subparsers.add_parser("weight", help="Print Garmin body-weight tag")
     garmin_weight.add_argument("date")
+
+    garmin_food = garmin_subparsers.add_parser("food-log", help="Preview or log Garmin food entries")
+    garmin_food.add_argument("date", type=_iso_date)
+    garmin_food.add_argument("time", type=_iso_time, help="Garmin account-local meal time in HH:MM or HH:MM:SS")
+    garmin_food.add_argument("--item", action="append", required=True, metavar="FOOD=AMOUNT [UNIT]",
+                             help="Food and amount, e.g. 'Porotos Negros=100 g'; repeat per food")
+    garmin_food.add_argument("--yes", action="store_true", help="Add foods to Garmin after preview checks")
 
     garmin_import = garmin_subparsers.add_parser("import-strength", help="Import strength JSON to Garmin")
     garmin_import.add_argument("json_file")
@@ -247,6 +256,10 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
         print_weight_tag(client, args.date)
         return
 
+    if getattr(args, "command", None) == "garmin" and args.garmin_command == "food-log":
+        garmin_nutrition_cli(args)
+        return
+
     if getattr(args, "command", None) == "garmin" and args.garmin_command == "import-strength":
         client = get_client()
         _push_json_argument(client, args.json_file)
@@ -355,6 +368,29 @@ def _iso_date(value: str) -> str:
     except ValueError as exc:
         raise argparse.ArgumentTypeError(f"invalid ISO date: {value}") from exc
     return value
+
+
+def _iso_time(value: str) -> str:
+    try:
+        parsed = clock_time.fromisoformat(value)
+        if parsed.tzinfo is not None or parsed.microsecond:
+            raise ValueError
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"invalid local time: {value}") from exc
+    return value
+
+
+def garmin_nutrition_cli(args: argparse.Namespace) -> None:
+    """Resolve and preview foods; write only after explicit --yes."""
+    try:
+        requests = [parse_food_item(item) for item in args.item]
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+    result = log_foods(get_client(), args.date, args.time, requests, apply=args.yes)
+    _print_structured(result)
+    if result.state in {"conflict", "uncertain", "verification_failed", "failed"}:
+        raise SystemExit(2)
 
 
 def _program_name() -> str:

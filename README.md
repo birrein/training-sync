@@ -203,7 +203,27 @@ training-sync garmin weight 2026-06-19
 
 This uses the nearest available Garmin weigh-in around the requested date and prints a Weight x Reps-compatible line.
 
-### 4. Reconciling a Day Across All Services
+### 4. Logging Garmin Nutrition
+
+Preview one or more foods with explicit amounts in the Garmin account's local time:
+
+```bash
+training-sync garmin food-log 2026-09-30 17:50 \
+  --item "Porotos Negros=100 g" \
+  --item "Huevo Duro=2 grande"
+```
+
+After checking the resolved foods, servings, and meal assignment, add them with `--yes`:
+
+```bash
+training-sync garmin food-log 2026-09-30 17:50 \
+  --item "Porotos Negros=100 g" \
+  --item "Huevo Duro=2 grande" --yes
+```
+
+The command uses existing Garmin Nutrition foods, rejects ambiguous matches and duplicates, and confirms saved entries by reading the day back. If Garmin's response or read-back is uncertain, it does not retry automatically. Time is interpreted in the Garmin account's local timezone.
+
+### 5. Reconciling a Day Across All Services
 
 To fetch every Garmin activity for a date, update its existing Obsidian daily
 note, and replace the corresponding Weight x Reps day with one reconciled
@@ -247,7 +267,7 @@ partial sync. Review that error before retrying. The integrated sync does not
 create unknown Weight x Reps exercises automatically: unresolved mappings stop
 the preflight before either destination is changed.
 
-### 5. Planned Garmin workouts
+### 6. Planned Garmin workouts
 
 Chat, a Fitbod screenshot, or a daily note is an input for the assistant, not a
 CLI parser contract. The assistant first turns the prescription into versioned
@@ -338,7 +358,7 @@ Edge has downloaded or executed the workout. Device compatibility for running
 power, indoor context, target display, and the exact rest/side behavior remains
 unverified until an explicitly authorized smoke test on a compatible device.
 
-### 6. Weight x Reps
+### 7. Weight x Reps
 
 Implementation notes:
 
@@ -445,7 +465,7 @@ Mappings with `create_if_missing = true` still require the full catalog from a
 configured user id; without one, pushes keep using the safe partial JEditor
 catalog and reject creation before writing.
 
-### 7. Intervals.icu
+### 8. Intervals.icu
 
 Store the personal API key outside the repository, either in the environment
 or in a local file (the key is never printed):

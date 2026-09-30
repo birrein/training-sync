@@ -171,6 +171,46 @@ def test_training_sync_weight_command_dispatches_to_existing_weight(monkeypatch)
     assert calls == [("weight", "client", "2026-06-19")]
 
 
+def test_training_sync_garmin_food_log_previews_by_default(monkeypatch, capsys):
+    calls = []
+
+    class Result:
+        state = "preview"
+        def to_dict(self): return {"state": self.state}
+
+    monkeypatch.setattr(cli, "get_client", lambda: "client")
+    monkeypatch.setattr(
+        cli, "log_foods",
+        lambda client, day, time, items, apply: calls.append((client, day, time, items, apply)) or Result(),
+        raising=False,
+    )
+
+    cli.main(["garmin", "food-log", "2026-09-30", "17:50", "--item", "Porotos Negros=100 g"])
+
+    assert calls[0][0:3] == ("client", "2026-09-30", "17:50")
+    assert calls[0][4] is False
+    assert '"state": "preview"' in capsys.readouterr().out
+
+
+def test_training_sync_garmin_food_log_yes_authorizes_one_log(monkeypatch):
+    calls = []
+
+    class Result:
+        state = "verified"
+        def to_dict(self): return {"state": self.state}
+
+    monkeypatch.setattr(cli, "get_client", lambda: "client")
+    monkeypatch.setattr(
+        cli, "log_foods",
+        lambda client, day, time, items, apply: calls.append((client, day, time, items, apply)) or Result(),
+        raising=False,
+    )
+
+    cli.main(["garmin", "food-log", "2026-09-30", "17:50", "--item", "Huevo Duro=2 grande", "--yes"])
+
+    assert calls[0][4] is True
+
+
 def test_training_sync_garmin_import_strength_reads_file_and_pushes(monkeypatch, tmp_path):
     calls = []
     json_file = tmp_path / "workout.json"
