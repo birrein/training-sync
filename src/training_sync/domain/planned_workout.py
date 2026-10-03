@@ -20,6 +20,7 @@ SUPPORTED_SCHEMA_VERSION = 1
 SUPPORTED_SPORTS = {"strength_training", "cycling", "running"}
 SUPPORTED_CONTEXTS = {"indoor", "outdoor"}
 SUPPORTED_ROLES = {"warmup", "work", "recovery", "cooldown", "other"}
+SUPPORTED_STRENGTH_SET_ROLES = {"warmup", "work"}
 # This is a safety bound for source expansion, not a Garmin DTO/device limit.
 MAX_EXPANDED_STRENGTH_SETS = 1000
 
@@ -88,6 +89,7 @@ class PlannedSet:
     termination: Termination
     load: LoadSpec
     description: str | None = None
+    role: str = "work"
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {"load": self.load.to_dict()}
@@ -100,6 +102,9 @@ class PlannedSet:
             result["termination"] = self.termination.to_dict()
         if self.description is not None:
             result["description"] = self.description
+        # Preserve canonical content and publication identity for older plans.
+        if self.role != "work":
+            result["role"] = self.role
         return result
 
 
@@ -472,11 +477,17 @@ def _parse_set(raw: Any, path: str) -> tuple[PlannedSet, int]:
     obj = _object(raw, path)
     _fields(
         obj,
-        {"reps", "termination", "load", "description", "repeat"},
+        {"reps", "termination", "load", "description", "repeat", "role"},
         path,
         required={"load"},
     )
     repeat = _positive_int(obj.get("repeat", 1), f"{path}.repeat")
+    role = _text(obj.get("role", "work"), f"{path}.role")
+    if role not in SUPPORTED_STRENGTH_SET_ROLES:
+        raise PlannedWorkoutValidationError(
+            f"unsupported strength set role '{role}' at {path}.role; "
+            "expected 'warmup' or 'work'"
+        )
     has_reps = "reps" in obj
     has_termination = "termination" in obj
     if has_reps == has_termination:
@@ -502,6 +513,7 @@ def _parse_set(raw: Any, path: str) -> tuple[PlannedSet, int]:
             termination=termination,
             load=load,
             description=_optional_text(obj.get("description"), f"{path}.description"),
+            role=role,
         ),
         repeat,
     )

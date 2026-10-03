@@ -165,6 +165,78 @@ def repeat_groups(projection):
     return [step for step in payload_steps(projection) if step.get("type") == "RepeatGroupDTO"]
 
 
+def test_approach_sets_emit_native_warmup_steps_with_exercise_reps_and_load():
+    plan = planned_workout_from_dict(strength_plan([
+        {
+            "name": "Bench Press",
+            "sets": [
+                {**set_with_load(10, 10), "role": "warmup"},
+                {**set_with_load(5, 30), "role": "warmup"},
+                {**set_with_load(3, 40), "role": "warmup"},
+                {**set_with_load(12, 53), "repeat": 3},
+            ],
+            "rest_between_sets": {"until": "time", "seconds": 120},
+            "rest_after_exercise": {"until": "lap"},
+        },
+    ], warmup={"until": "lap", "description": "General mobility"}))
+    projection = project_planned_workout(plan)
+    active = active_steps(projection)
+    assert [s["stepType"]["stepTypeKey"] for s in active] == ["warmup"] * 4 + ["interval"] * 3
+    assert active[0]["exerciseName"] is None  # Existing general warm-up is preserved.
+    assert [s["endConditionValue"] for s in active[1:4]] == [10, 5, 3]
+    assert [s["weightValue"] for s in active[1:4]] == [10, 30, 40]
+    assert all(s["exerciseName"] == "BARBELL_BENCH_PRESS" for s in active[1:])
+    assert all(s["weightUnit"]["unitKey"] == "kilogram" for s in active[1:4])
+    group = repeat_groups(projection)[0]
+    assert group["numberOfIterations"] == 3
+    assert group["skipLastRestStep"] is True
+    assert payload_steps(projection)[-1]["endCondition"]["conditionTypeKey"] == "lap.button"
+    assert "warmup: Bench Press; Warm-up / approximation set" in projection.preview
+
+
+def test_equal_prescriptions_never_group_across_warmup_and_work_roles():
+    plan = planned_workout_from_dict(strength_plan([
+        {
+            "name": "Dumbbell Lateral Raise",
+            "sets": [
+                {**set_with_load(8, 3, "per_hand"), "role": "warmup", "repeat": 2},
+                {**set_with_load(8, 3, "per_hand"), "role": "work", "repeat": 2},
+            ],
+            "rest_between_sets": {"until": "time", "seconds": 60},
+            "rest_after_exercise": {"until": "time", "seconds": 60},
+        },
+    ]))
+    projection = project_planned_workout(plan)
+    groups = repeat_groups(projection)
+    assert [g["numberOfIterations"] for g in groups] == [2, 2]
+    assert [g["workoutSteps"][0]["stepType"]["stepTypeKey"] for g in groups] == ["warmup", "interval"]
+    decoded = decode_workout_steps(projection.payload)
+    active = [s for s in decoded.steps if s["stepType"]["stepTypeKey"] != "rest"]
+    assert len(active) == 4
+    assert all(s["endConditionValue"] == 8 and s["weightValue"] == 3 for s in active)
+    assert all("complete both sides" in s["description"] for s in active)
+
+
+@pytest.mark.parametrize("termination", [{"until": "lap"}, {"until": "time", "seconds": 30}])
+def test_non_rep_approach_set_preserves_termination_and_stays_flat(termination):
+    plan = planned_workout_from_dict(strength_plan([
+        {
+            "name": "Bench Press",
+            "sets": [{"role": "warmup", "termination": termination,
+                      "load": {"kind": "mass", "kg": 30, "basis": "total"}}],
+            "rest_after_exercise": {"until": "lap"},
+        },
+    ]))
+    projection = project_planned_workout(plan)
+    step = active_steps(projection)[0]
+    assert step["stepType"]["stepTypeKey"] == "warmup"
+    assert step["endCondition"]["conditionTypeKey"] == (
+        "lap.button" if termination["until"] == "lap" else "time"
+    )
+    assert step["endConditionValue"] == termination.get("seconds")
+    assert repeat_groups(projection) == []
+
+
 def test_equal_strength_sets_emit_one_maximal_repeat_group_with_every_rest():
     plan = planned_workout_from_dict(
         strength_plan(
@@ -365,15 +437,22 @@ def test_missing_inter_set_strength_rest_is_rejected_before_projection():
         project_planned_workout(plan)
 
 
-def test_different_final_transition_rest_keeps_equal_sets_separate():
+@pytest.mark.parametrize("iterations", [2, 3, 4])
+@pytest.mark.parametrize("terminal_rest", [
+    {"until": "time", "seconds": 120},
+    {"until": "lap"},
+])
+def test_different_final_rest_groups_all_sets_and_replaces_only_last_rest(
+    iterations, terminal_rest
+):
     plan = planned_workout_from_dict(
         strength_plan(
             [
                 {
                     "name": "Face Pull",
-                    "sets": [set_with_load(12, 5), set_with_load(12, 5)],
+                    "sets": [set_with_load(12, 5)] * iterations,
                     "rest_between_sets": {"until": "time", "seconds": 75},
-                    "rest_after_exercise": {"until": "time", "seconds": 120},
+                    "rest_after_exercise": terminal_rest,
                 }
             ]
         )
@@ -381,12 +460,78 @@ def test_different_final_transition_rest_keeps_equal_sets_separate():
 
     projection = project_planned_workout(plan)
 
-    assert repeat_groups(projection) == []
+    group, final_rest = payload_steps(projection)
+    assert group["numberOfIterations"] == iterations
+    assert group["skipLastRestStep"] is True
+    assert final_rest["endCondition"]["conditionTypeKey"] == (
+        "time" if terminal_rest["until"] == "time" else "lap.button"
+    )
+    decoded = decode_workout_steps(projection.payload)
     assert [
         step["endConditionValue"]
-        for step in projection.steps
+        for step in decoded.steps
         if step["stepType"]["stepTypeKey"] == "rest"
-    ] == [75, 120]
+    ] == [75] * (iterations - 1) + [terminal_rest.get("seconds")]
+    # Read-back expansion must reproduce preview, including the manual terminal
+    # editing phase, without an extra inter-set rest after the last series.
+    assert [
+        (step["stepType"]["stepTypeKey"], step["endConditionValue"], step["description"])
+        for step in decoded.steps
+    ] == [
+        (step["stepType"]["stepTypeKey"], step["endConditionValue"], step["description"])
+        for step in projection.steps
+    ]
+    assert "skipLastRestStep=true" in projection.preview
+
+
+def test_bench_to_unilateral_transition_has_one_rest_and_one_series_for_both_arms():
+    plan = planned_workout_from_dict(strength_plan([
+        {
+            "name": "Bench Press",
+            "sets": [set_with_load(12, 53)] * 3,
+            "rest_between_sets": {"until": "time", "seconds": 180},
+            "rest_after_exercise": {"until": "time", "seconds": 240},
+        },
+        {
+            "name": "Dumbbell Lateral Raise",
+            "sets": [set_with_load(16, 5, "per_hand")] * 2,
+            "rest_between_sets": {"until": "time", "seconds": 90},
+            "rest_after_exercise": {"until": "time", "seconds": 90},
+        },
+    ]))
+    projection = project_planned_workout(plan)
+    bench, transition, unilateral = payload_steps(projection)
+    assert bench["numberOfIterations"] == 3
+    assert bench["skipLastRestStep"] is True
+    assert transition["endConditionValue"] == 240
+    assert unilateral["numberOfIterations"] == 2
+    assert unilateral["skipLastRestStep"] is False
+    child = unilateral["workoutSteps"][0]
+    assert child["endConditionValue"] == 16
+    assert child["weightValue"] == 5
+    assert "both sides" in child["description"]
+    assert "per hand" in child["description"]
+    steps = decode_workout_steps(projection.payload).steps
+    assert [s["endConditionValue"] for s in steps if s["stepType"]["stepTypeKey"] == "rest"] == [180, 180, 240, 90, 90]
+
+
+def test_changed_load_before_different_transition_preserves_group_boundaries():
+    plan = planned_workout_from_dict(strength_plan([
+        {
+            "name": "Bench Press",
+            "sets": [set_with_load(12, 53)] * 2 + [set_with_load(10, 54)] * 2,
+            "rest_between_sets": {"until": "time", "seconds": 180},
+            "rest_after_exercise": {"until": "time", "seconds": 240},
+        },
+    ]))
+    projection = project_planned_workout(plan)
+    first, last, rest = payload_steps(projection)
+    assert first["numberOfIterations"] == last["numberOfIterations"] == 2
+    assert first["skipLastRestStep"] is False
+    assert last["skipLastRestStep"] is True
+    assert first["workoutSteps"][0]["weightValue"] == 53
+    assert last["workoutSteps"][0]["weightValue"] == 54
+    assert rest["endConditionValue"] == 240
 
 
 def test_rdl_transition_rest_is_preserved_after_final_set_before_next_exercise():

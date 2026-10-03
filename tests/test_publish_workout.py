@@ -270,6 +270,39 @@ def test_explicit_schedule_date_wins_over_source_plan_date():
     assert client.scheduled[result.schedule_id]["date"] == "2026-09-13"
 
 
+@pytest.mark.parametrize("corrupt_role", [False, True])
+def test_approach_set_role_is_verified_before_scheduling(corrupt_role):
+    class ApproachClient(ProviderBoundaryGarminClient):
+        def get_workout_by_id(self, workout_id):
+            saved = super().get_workout_by_id(workout_id)
+            if corrupt_role:
+                saved["workoutSegments"][0]["workoutSteps"][0]["stepType"]["stepTypeKey"] = "interval"
+            return saved
+
+    data = strength_plan().to_dict()
+    data["exercises"][0]["sets"].insert(0, {
+        "role": "warmup", "reps": 8,
+        "load": {"kind": "mass", "kg": 40, "basis": "total"},
+    })
+    client = ApproachClient()
+    result = publish_workout(
+        client, planned_workout_from_dict(data), authorized=True,
+        schedule_date="2026-10-10", journal_path=None,
+    )
+    if corrupt_role:
+        assert result.template_state == "verification_failed"
+        assert client.schedule_calls == 0
+        assert any("type mismatch" in e for e in result.verification_errors)
+    else:
+        assert result.verified is True
+        assert result.schedule_state == "verified"
+        saved = client.workouts[result.workout_id]["workoutSegments"][0]["workoutSteps"][0]
+        assert saved["stepType"]["stepTypeKey"] == "warmup"
+        assert saved["exerciseName"] == "ROMANIAN_DEADLIFT"
+        assert saved["weightValue"] == 40
+        assert saved["endConditionValue"] == 8
+
+
 def test_readback_rest_mismatch_fails_before_scheduling():
     client = FakeGarminClient()
     client.drop_rest_on_read = True

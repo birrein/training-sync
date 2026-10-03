@@ -296,9 +296,14 @@ catalog entry, and conflicting or unknown identities stop the operation.
 The preview expands every executable step used for verification. Garmin
 may receive eligible consecutive strength sets as a compact
 `RepeatGroupDTO`; the preview still lists every physical set and rest and
-discloses the iteration count and `skipLastRestStep` value. Equal groups use
-`skipLastRestStep=false` so the final rest remains available for post-set
-editing.
+discloses the iteration count and `skipLastRestStep` value. When inter-set and
+final rests are equal, groups use `skipLastRestStep=false`. When the transition
+or terminal rest differs, all eligible equal sets remain grouped with
+`skipLastRestStep=true`, followed by that prescribed rest once outside the
+group. For example, three bench sets with 180-second inter-set rests and a
+240-second transition expand to bench, rest 180, bench, rest 180, bench,
+rest 240. An explicit timed or manual final rest remains available for post-set
+editing; the two rests are never added together.
 
 For strength input, each `sets` entry may include an optional positive integer
 `repeat` (default `1`). It repeats complete sets, not repetitions or load, so
@@ -310,6 +315,23 @@ sets** per plan; it protects local allocation and is separate from Garmin's
 provider/device capacity. New strength writes require an explicit timed or
 manual rest after every physical set, including the final set; a missing or
 null rest fails preflight and no duration is invented.
+
+Exercise-specific approach sets are opt-in: add `"role": "warmup"` to a strength
+set to publish a native Garmin **Warm up** step with its exercise, repetitions
+or manual/time termination, and load. Omitted role or `"role": "work"` retains
+the ordinary **Exercise** step and the existing canonical hash. The generic
+top-level `warmup` remains a separate option. For example, a `sets` entry may be:
+
+```json
+{"role": "warmup", "reps": 5, "load": {"kind": "mass", "kg": 30, "basis": "total"}}
+```
+
+Equal sets never group across the warmup/work boundary. If approaches need
+different rests from working sets, use consecutive exercise entries with their
+respective `rest_between_sets` and `rest_after_exercise` prescriptions. The
+publisher does not add approaches automatically. Planned roles are verified on
+read-back; classification of completed activity sets and exclusion from working
+volume during later synchronization are not implemented by this feature.
 
 Create a reusable template, optionally scheduling it on an explicit local
 calendar date:

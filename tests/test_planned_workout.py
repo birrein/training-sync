@@ -1,3 +1,4 @@
+from copy import deepcopy
 import math
 
 import pytest
@@ -28,6 +29,48 @@ def strength_plan(**overrides):
     }
     plan.update(overrides)
     return plan
+
+
+def test_strength_set_role_roundtrip_and_legacy_publication_identity():
+    legacy_input = strength_plan()
+    legacy = planned_workout_from_dict(legacy_input)
+    explicit_input = deepcopy(legacy_input)
+    for item in explicit_input["exercises"][0]["sets"]:
+        item["role"] = "work"
+    explicit = planned_workout_from_dict(explicit_input)
+    assert all(item.role == "work" for item in legacy.exercises[0].sets)
+    assert explicit.execution_dict() == legacy.execution_dict()
+    assert explicit.execution_hash() == legacy.execution_hash()
+    assert all("role" not in item for item in explicit.to_dict()["exercises"][0]["sets"])
+
+    explicit_input["exercises"][0]["sets"][0]["role"] = "warmup"
+    warmup = planned_workout_from_dict(explicit_input)
+    assert warmup.execution_hash() != legacy.execution_hash()
+    assert warmup.to_dict()["exercises"][0]["sets"][0]["role"] == "warmup"
+    assert planned_workout_from_dict(warmup.to_dict()) == warmup
+
+
+def test_repeated_warmup_sets_preserve_role_and_canonical_identity():
+    compact_input = strength_plan()
+    item = compact_input["exercises"][0]["sets"][0]
+    item.update(role="warmup", repeat=2)
+    compact_input["exercises"][0]["sets"] = [item]
+    explicit_input = deepcopy(compact_input)
+    explicit_item = explicit_input["exercises"][0]["sets"][0]
+    explicit_item.pop("repeat")
+    explicit_input["exercises"][0]["sets"] = [explicit_item, deepcopy(explicit_item)]
+    compact = planned_workout_from_dict(compact_input)
+    explicit = planned_workout_from_dict(explicit_input)
+    assert [item.role for item in compact.exercises[0].sets] == ["warmup", "warmup"]
+    assert compact.execution_hash() == explicit.execution_hash()
+
+
+@pytest.mark.parametrize("role", [None, True, 1, "", "recovery", "approximation"])
+def test_invalid_strength_set_role_fails_with_field_path(role):
+    data = strength_plan()
+    data["exercises"][0]["sets"][0]["role"] = role
+    with pytest.raises(PlannedWorkoutValidationError, match=r"exercises\[0\].sets\[0\].role"):
+        planned_workout_from_dict(data)
 
 
 def interval_plan(**overrides):

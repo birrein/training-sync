@@ -502,12 +502,34 @@ def _compact_strength_units(units: list[_StrengthUnit]) -> list[dict[str, Any]]:
         end = index + 1
         while end < len(units):
             candidate = units[end]
-            if not candidate.can_group or _strength_unit_signature(candidate) != signature:
+            candidate_signature = _strength_unit_signature(candidate)
+            if not candidate.can_group or candidate_signature[:2] != signature[:2]:
+                break
+            if candidate_signature[2] != signature[2]:
+                # Only the last set of this exercise may replace the repeated
+                # inter-set rest with an explicit transition/terminal rest.
+                if (
+                    end + 1 < len(units)
+                    and units[end + 1].exercise_index == unit.exercise_index
+                ):
+                    break
+                end += 1
                 break
             end += 1
         if end - index >= 2:
             group_index += 1
-            result.append(_repeat_group(units[index:end], group_index=group_index))
+            skip_last_rest = (
+                _semantic_step_signature(units[end - 1].following_rest) != signature[2]
+            )
+            result.append(
+                _repeat_group(
+                    units[index:end],
+                    group_index=group_index,
+                    skip_last_rest=skip_last_rest,
+                )
+            )
+            if skip_last_rest:
+                result.append(deepcopy(units[end - 1].following_rest))
         else:
             result.extend(_flatten_strength_unit(unit))
         index = end
@@ -544,6 +566,7 @@ def _repeat_group(
     units: list[_StrengthUnit],
     *,
     group_index: int,
+    skip_last_rest: bool = False,
 ) -> dict[str, Any]:
     first = units[0]
     if len(first.active_steps) != 1:
@@ -564,7 +587,7 @@ def _repeat_group(
         "endCondition": condition,
         "endConditionValue": iterations,
         "numberOfIterations": iterations,
-        "skipLastRestStep": False,
+        "skipLastRestStep": skip_last_rest,
         "workoutSteps": [active, rest],
     }
 
@@ -605,6 +628,8 @@ def _strength_step(
     termination = planned_set.termination
     mapping = resolution.mapping
     description_parts = [exercise.name]
+    if planned_set.role == "warmup":
+        description_parts.append("Warm-up / approximation set")
     if resolution.source == "explicit_garmin_name":
         description_parts.append(f"(Garmin: {resolution.selected_name})")
     if planned_set.description:
@@ -620,7 +645,7 @@ def _strength_step(
 
     step = _base_step(
         order=order,
-        step_type="interval",
+        step_type="warmup" if planned_set.role == "warmup" else "interval",
         termination=termination,
         description="; ".join(part for part in description_parts if part),
         preferred_end_condition_unit=None,

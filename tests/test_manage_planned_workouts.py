@@ -7,6 +7,7 @@ import pytest
 
 from training_sync.domain.planned_workout import planned_workout_from_dict
 from training_sync.garmin.planned_workouts import project_planned_workout
+from training_sync.garmin.workout_steps import decode_workout_steps
 from training_sync.use_cases.manage_planned_workouts import (
     ManagementError,
     RemotePermissionError,
@@ -41,7 +42,7 @@ def plan(name="Managed Plan", kg=83):
     )
 
 
-def grouped_plan(name="Managed Grouped Plan", kg=83):
+def grouped_plan(name="Managed Grouped Plan", kg=83, *, terminal_rest=None):
     return planned_workout_from_dict(
         {
             "schema_version": 1,
@@ -56,7 +57,10 @@ def grouped_plan(name="Managed Grouped Plan", kg=83):
                         {"reps": 10, "load": {"kind": "mass", "kg": kg, "basis": "total"}},
                     ],
                     "rest_between_sets": {"until": "time", "seconds": 165},
-                    "rest_after_exercise": {"until": "time", "seconds": 165},
+                    "rest_after_exercise": (
+                        terminal_rest if terminal_rest is not None
+                        else {"until": "time", "seconds": 165}
+                    ),
                 }
             ],
         }
@@ -295,6 +299,95 @@ def test_grouped_duplicate_preserves_repeat_tree_and_unrelated_metadata():
     assert copied["unrelatedMetadata"] == {"keep": True}
 
 
+def test_manage_approach_groups_preserves_native_role_load_and_metadata():
+    data = grouped_plan().to_dict()
+    for item in data["exercises"][0]["sets"]:
+        item["role"] = "warmup"
+    remote = project_planned_workout(planned_workout_from_dict(data)).payload
+    remote["unrelatedMetadata"] = {"keep": True}
+    client = ProviderBoundaryManagementClient({7: remote})
+    for item in data["exercises"][0]["sets"]:
+        item["load"]["kg"] = 40
+    result = update_workout(
+        client, 7, planned_workout_from_dict(data), authorized=True, journal_path=None
+    )
+    assert result.state == "verified"
+    group = client.workouts[7]["workoutSegments"][0]["workoutSteps"][0]
+    assert group["numberOfIterations"] == 2
+    assert group["workoutSteps"][0]["stepType"]["stepTypeKey"] == "warmup"
+    assert group["workoutSteps"][0]["weightValue"] == 40
+    copy = duplicate_workout(
+        client, 7, name="Approach Copy", authorized=True, journal_path=None
+    )
+    assert copy.state == "verified"
+    assert client.workouts[copy.workout_id]["workoutSegments"][0]["workoutSteps"][0] == group
+    assert client.workouts[copy.workout_id]["unrelatedMetadata"] == {"keep": True}
+
+
+@pytest.mark.parametrize("flat", [False, True])
+@pytest.mark.parametrize("terminal_rest", [
+    {"until": "time", "seconds": 240},
+    {"until": "lap"},
+])
+def test_update_groups_distinct_final_rest_without_changing_execution_or_metadata(
+    flat, terminal_rest
+):
+    desired = grouped_plan(terminal_rest=terminal_rest)
+    projection = project_planned_workout(desired)
+    remote = deepcopy(projection.payload)
+    if flat:
+        remote["workoutSegments"][0]["workoutSteps"] = list(projection.steps)
+    remote["unrelatedMetadata"] = {"keep": True}
+    client = ProviderBoundaryManagementClient({7: remote})
+    before = decode_workout_steps(remote).steps
+
+    result = update_workout(client, 7, desired, authorized=True, journal_path=None)
+
+    saved = client.workouts[7]
+    group, final_rest = saved["workoutSegments"][0]["workoutSteps"]
+    assert result.state == "verified"
+    assert group["numberOfIterations"] == 2
+    assert group["skipLastRestStep"] is True
+    assert final_rest["endCondition"]["conditionTypeKey"] == (
+        "time" if terminal_rest["until"] == "time" else "lap.button"
+    )
+    assert saved["unrelatedMetadata"] == {"keep": True}
+    def execution(steps):
+        return [
+            (s["description"], s["endConditionValue"], s["weightValue"])
+            for s in steps
+        ]
+
+    assert execution(decode_workout_steps(saved).steps) == execution(before)
+
+
+def test_duplicate_keeps_skip_last_rest_and_manual_terminal_rest():
+    desired = grouped_plan(terminal_rest={"until": "lap"})
+    remote = project_planned_workout(desired).payload
+    client = ProviderBoundaryManagementClient({7: remote})
+    result = duplicate_workout(
+        client, 7, name="Grouped Copy", authorized=True, journal_path=None
+    )
+    group, final_rest = client.workouts[result.workout_id]["workoutSegments"][0]["workoutSteps"]
+    assert result.state == "verified"
+    assert group["skipLastRestStep"] is True
+    assert final_rest["endCondition"]["conditionTypeKey"] == "lap.button"
+
+
+def test_update_rejects_provider_readback_that_reintroduces_final_group_rest():
+    class CorruptLastRestClient(FakeManagementClient):
+        def update_workout(self, workout_id, payload):
+            result = super().update_workout(workout_id, payload)
+            self.workouts[int(workout_id)]["workoutSegments"][0]["workoutSteps"][0]["skipLastRestStep"] = False
+            return result
+
+    desired = grouped_plan(terminal_rest={"until": "time", "seconds": 240})
+    client = CorruptLastRestClient({7: project_planned_workout(desired).payload})
+    with pytest.raises(ManagementError, match="skipLastRestStep mismatch"):
+        update_workout(client, 7, desired, authorized=True, journal_path=None)
+    assert client.update_calls == 1
+
+
 def test_regrouping_rejects_conflicting_per_set_provider_metadata_before_mutation():
     remote = remote_grouped_plan(flat=True)
     physical_steps = remote["workoutSegments"][0]["workoutSteps"]
@@ -512,7 +605,10 @@ def test_delete_requires_explicit_authorization_and_rejects_referenced_template(
     assert client.delete_calls == 0
 
     with pytest.raises(UnsupportedRemoteStructureError, match="scheduled"):
-        delete_workout(client, 7, authorized=True, journal_path=None)
+        delete_workout(
+            client, 7, authorized=True, journal_path=None,
+            calendar_year=2026, calendar_month=9,
+        )
     assert client.delete_calls == 0
 
 

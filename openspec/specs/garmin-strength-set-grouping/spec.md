@@ -6,7 +6,7 @@ Present repeated strength sets compactly in Garmin Connect while preserving exec
 ## Requirements
 
 ### Requirement: Automatically group equivalent consecutive strength sets
-The system SHALL publish eligible runs of at least two consecutive sets within the same strength exercise as a repeat group. Eligibility MUST require equal exercise identity, repetition termination, load and load basis, side semantics, meaningful instructions and inter-set rests. It MUST preserve set order, keep manual-lap sets and explicit separate-side rounds ungrouped, and never combine distinct exercise entries. Running and cycling behavior SHALL remain unchanged.
+The system SHALL publish eligible runs of at least two consecutive sets within the same strength exercise as a repeat group. Eligibility MUST require equal exercise identity, explicit set role, repetition termination, load and load basis, side semantics, meaningful instructions and inter-set rests. It MUST preserve set order, keep manual-lap sets and explicit separate-side rounds ungrouped, and never combine distinct exercise entries. Running and cycling behavior SHALL remain unchanged.
 
 #### Scenario: Equivalent sets with equal rests
 - **WHEN** any eligible strength exercise has N consecutive equivalent sets, where N is an integer of at least two, with identical repetitions, load, load basis, side semantics, meaningful instructions and prescribed following rests
@@ -16,16 +16,20 @@ The system SHALL publish eligible runs of at least two consecutive sets within t
 - **WHEN** consecutive sets differ in weight, repetitions, termination, load basis or meaningful instructions
 - **THEN** no group crosses that difference and all original prescriptions remain represented
 
+#### Scenario: Equal prescriptions with different roles
+- **WHEN** consecutive sets have identical exercise, repetitions and load but some explicitly have role warmup and others have role work
+- **THEN** no group crosses the role boundary; eligible runs within each role retain native Warm up or Exercise children, respectively
+
 #### Scenario: Bilbo and normal bench
 - **WHEN** manual-lap Bilbo at 53 kg precedes two normal 12-repetition sets at 53 kg
 - **THEN** Bilbo remains a manual step and only the normal sets are grouped
 
 #### Scenario: Combined unilateral sets
 - **WHEN** two sets prescribe 15 repetitions per arm at 5 kg with 75-second rests
-- **THEN** the group retains the per-arm prescription and both-arms-before-rest instruction without multiplying repetitions or load
+- **THEN** the group has two iterations, each retaining the per-arm prescription and both-arms-before-rest instruction; this is two series per muscle, not four, without multiplying repetitions or load
 
 ### Requirement: Preserve transition and terminal rests exactly
-New strength writes MUST require an explicitly defined timed or manual rest after every set, including the final workout set, to retain the watch's post-set editing phase. Missing or null rests MUST fail preflight with a field-specific explanation before mutation; no duration SHALL be invented. Every generated group MUST use skipLastRestStep=false and expand to the prescribed sequence. If a transition differs, the system SHALL keep the affected sets separate rather than skip a group rest or double the transition. Manual rests MUST retain manual termination. Historical workouts with omitted rests SHALL remain readable without automatic rewriting.
+New strength writes MUST require an explicitly defined timed or manual rest after every set, including the final workout set, to retain the watch's post-set editing phase. Missing or null rests MUST fail preflight with a field-specific explanation before mutation; no duration SHALL be invented. Every generated group MUST expand to the prescribed sequence. If the final transition or terminal rest differs from the inter-set rest, equivalent eligible sets SHALL remain grouped with skipLastRestStep=true and the explicitly prescribed final rest SHALL appear once outside the group. If those rests are equal, the group MUST use skipLastRestStep=false without an additional external rest. Manual rests MUST retain manual termination. Historical workouts with omitted rests SHALL remain readable without automatic rewriting.
 
 #### Scenario: Final face pull editing phase
 - **WHEN** two face pull sets specify 75 seconds after each set including the final workout set
@@ -36,12 +40,16 @@ New strength writes MUST require an explicitly defined timed or manual rest afte
 - **THEN** preflight requests an explicit timed or manual rest before any mutation
 
 #### Scenario: Manual final rest
-- **WHEN** the final set prescribes a manual rest
-- **THEN** that rest remains available until manual advancement without an invented duration
+- **WHEN** equivalent final sets prescribe timed inter-set rests and a manual final rest
+- **THEN** the sets remain grouped with skipLastRestStep=true and one external manual rest remains available until manual advancement without an invented duration
 
 #### Scenario: Different transition rest
 - **WHEN** two identical sets have 75 seconds between sets and 120 seconds after the exercise
-- **THEN** the two sets remain separate and execution contains active, rest 75, active, rest 120 exactly once each in that order
+- **THEN** Garmin receives a two-iteration group with active and rest 75 children, skipLastRestStep=true, and one external rest 120; expanded execution contains active, rest 75, active, rest 120 exactly once each in that order
+
+#### Scenario: Bench to dips transition
+- **WHEN** three identical bench sets prescribe 180 seconds between sets and 240 seconds before dips
+- **THEN** all three bench sets are grouped with skipLastRestStep=true and one external 240-second rest precedes dips, without an additional 180-second rest after the final bench set
 
 ### Requirement: Preview and verify grouped execution
 Offline preview SHALL disclose repeat counts and rest exceptions while retaining the full executable prescription. Remote verification MUST compare expanded semantics and verify the requested repeat representation on writes. Missing groups, wrong iteration counts, altered children or changed last-rest behavior MUST prevent a successful grouped-write result. Supported flat historical resources SHALL remain readable and semantically verifiable without forced migration.
@@ -53,6 +61,10 @@ Offline preview SHALL disclose repeat counts and rest exceptions while retaining
 #### Scenario: Provider flattens the requested representation
 - **WHEN** Garmin returns equivalent flat execution after a requested grouped write
 - **THEN** verification reports that grouped representation was not retained rather than claiming grouped-write success
+
+#### Scenario: Provider retains an unwanted last group rest
+- **WHEN** a requested group uses skipLastRestStep=true and an external transition rest, but read-back returns skipLastRestStep=false
+- **THEN** verification fails because the extra group rest changes execution
 
 #### Scenario: Existing publication retry
 - **WHEN** unchanged canonical content resolves to a verified historical flat publication
