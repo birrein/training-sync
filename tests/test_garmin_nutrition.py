@@ -240,3 +240,61 @@ def test_log_foods_supports_overnight_windows():
 
     assert result.state == "preview"
     assert result.meal_name == "SNACKS"
+
+
+def test_meal_end_time_is_included_in_payload_and_verified():
+    client = _client()
+    client.meals = {"meals": [
+        {"mealId": 12, "mealName": "DINNER", "enabled": True,
+         "startTime": "20:30:00", "endTime": "23:00:00"},
+        {"mealId": 11, "mealName": "SNACKS", "enabled": True},
+    ]}
+
+    result = log_foods(client, "2026-09-30", "23:00", [FoodRequest("Huevo Duro", 2, "grande")], apply=True)
+
+    assert result.state == "verified"
+    assert result.meal_name == "DINNER"
+    item = client.put_calls[0][2]["json"]["foodLogItems"][0]
+    assert (item["mealId"], item["mealTime"]) == (12, "23:00:00")
+
+    duplicate = log_foods(client, "2026-09-30", "23:00", [FoodRequest("Huevo Duro", 2, "grande")], apply=True)
+    assert duplicate.state == "conflict"
+    assert len(client.put_calls) == 1
+
+
+def test_immediately_after_meal_end_uses_untimed_snacks():
+    client = _client()
+    client.meals = {"meals": [
+        {"mealId": 12, "mealName": "DINNER", "enabled": True,
+         "startTime": "20:30:00", "endTime": "23:00:00"},
+        {"mealId": 11, "mealName": "SNACKS", "enabled": True},
+    ]}
+
+    result = log_foods(client, "2026-09-30", "23:00:01", [FoodRequest("Huevo Duro", 1, "grande")])
+
+    assert result.state == "preview"
+    assert result.meal_name == "SNACKS"
+
+
+def test_end_of_overnight_meal_is_included():
+    client = _client(time_range=("22:00:00", "02:00:00"))
+
+    result = log_foods(client, "2026-09-30", "02:00", [FoodRequest("Huevo Duro", 1, "grande")])
+
+    assert result.state == "preview"
+    assert result.meal_name == "SNACKS"
+
+
+def test_shared_meal_boundary_is_rejected_as_ambiguous():
+    client = _client()
+    client.meals = {"meals": [
+        {"mealId": 12, "mealName": "LUNCH", "enabled": True,
+         "startTime": "12:00:00", "endTime": "14:00:00"},
+        {"mealId": 13, "mealName": "DINNER", "enabled": True,
+         "startTime": "14:00:00", "endTime": "18:00:00"},
+    ]}
+
+    result = log_foods(client, "2026-09-30", "14:00", [FoodRequest("Huevo Duro", 1, "grande")], apply=True)
+
+    assert result.state == "conflict"
+    assert client.put_calls == []

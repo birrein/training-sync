@@ -214,8 +214,10 @@ def _meal_for_time(meals: list[dict[str, Any]], requested: time) -> dict[str, An
         if not start or not end:
             continue
         start_time, end_time = time.fromisoformat(start), time.fromisoformat(end)
-        contains = (start_time <= requested < end_time if start_time <= end_time
-                    else requested >= start_time or requested < end_time)
+        # Garmin accepts the end instant as part of the meal. Shared boundaries
+        # therefore match both meals and must be rejected as ambiguous.
+        contains = (start_time <= requested <= end_time if start_time <= end_time
+                    else requested >= start_time or requested <= end_time)
         if contains:
             matches.append(meal)
     if len(matches) == 1:
