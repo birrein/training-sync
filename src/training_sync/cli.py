@@ -109,8 +109,9 @@ def _add_modern_subcommands(parser: argparse.ArgumentParser) -> None:
     garmin_food = garmin_subparsers.add_parser("food-log", help="Preview or log Garmin food entries")
     garmin_food.add_argument("date", type=_iso_date)
     garmin_food.add_argument("time", type=_iso_time, help="Garmin account-local meal time in HH:MM or HH:MM:SS")
-    garmin_food.add_argument("--item", action="append", required=True, metavar="FOOD=AMOUNT [UNIT]",
-                             help="Food and amount, e.g. 'Porotos Negros=100 g'; repeat per food")
+    garmin_food.add_argument("--item", action="append", required=True,
+                             metavar="FOOD[@FOOD_ID]=AMOUNT [UNIT]",
+                             help="Food and amount; append @FOOD_ID to select an exact catalog item")
     garmin_food.add_argument("--yes", action="store_true", help="Add foods to Garmin after preview checks")
 
     garmin_import = garmin_subparsers.add_parser("import-strength", help="Import strength JSON to Garmin")

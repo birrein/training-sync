@@ -82,6 +82,18 @@ def test_parse_item_converts_requested_measure_to_catalog_servings():
     assert eggs == FoodRequest("Huevo Duro", 2, "grande")
 
 
+def test_food_id_selects_one_of_multiple_exact_catalog_matches():
+    client = _client()
+    client.search["results"].append(_food("Porotos Negros", "beans2", "b2", "g", 100))
+
+    request = parse_food_item("Porotos Negros@beans2=100 g")
+    result = log_foods(client, "2026-09-30", "17:50", [request])
+
+    assert request == FoodRequest("Porotos Negros", 100, "g", "beans2")
+    assert result.state == "preview"
+    assert result.entries[0]["food_id"] == "beans2"
+
+
 def test_log_foods_converts_metric_units_and_defaults_to_serving_count():
     client = _client()
 
@@ -123,6 +135,7 @@ def test_log_foods_preview_does_not_write():
     result = log_foods(client, "2026-09-30", "17:50", [FoodRequest("Huevo Duro", 2, "grande")])
 
     assert result.state == "preview"
+    assert "food_id" not in result.entries[0]
     assert client.put_calls == []
 
 
@@ -172,6 +185,9 @@ def test_log_foods_rejects_ambiguous_match_before_write():
     result = log_foods(client, "2026-09-30", "17:50", [FoodRequest("Porotos Negros", 100, "g")], apply=True)
 
     assert result.state == "conflict"
+    assert "@FOOD_ID" in result.message
+    assert "beans" in result.message
+    assert "beans2" in result.message
     assert client.put_calls == []
 
 

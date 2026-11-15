@@ -18,6 +18,7 @@ class FoodRequest:
     name: str
     quantity: float
     unit: str | None = None
+    food_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -32,17 +33,23 @@ class NutritionLogResult:
 
 
 def parse_food_item(value: str) -> FoodRequest:
-    """Parse `FOOD=AMOUNT [UNIT]`, e.g. `Porotos Negros=100 g`."""
+    """Parse `FOOD[ @FOOD_ID]=AMOUNT [UNIT]`."""
     if "=" not in value:
         raise ValueError("each --item must use FOOD=AMOUNT [UNIT]")
     name, amount = (part.strip() for part in value.split("=", 1))
+    food_id = None
+    id_match = re.fullmatch(r"(.+?)\s*@([A-Za-z0-9_-]+)", name)
+    if id_match:
+        name, food_id = id_match.groups()
+    elif "@" in name:
+        raise ValueError(f"invalid food ID selector in {value!r}; use FOOD@FOOD_ID=AMOUNT [UNIT]")
     match = re.fullmatch(r"([0-9]+(?:\.[0-9]+)?)(?:\s+(.+))?", amount)
     if not name or not match:
         raise ValueError(f"invalid food item {value!r}; use FOOD=AMOUNT [UNIT]")
     quantity = float(match.group(1))
     if not math.isfinite(quantity) or quantity <= 0:
         raise ValueError("food quantity must be a positive finite number")
-    return FoodRequest(name=name, quantity=quantity, unit=match.group(2))
+    return FoodRequest(name=name, quantity=quantity, unit=match.group(2), food_id=food_id)
 
 
 def log_foods(
@@ -80,10 +87,13 @@ def log_foods(
     for request in requests:
         saved_matches = [item for item in saved_foods
                          if _norm(item.get("foodMetaData", {}).get("foodName")) == _norm(request.name)]
-        choices = [(food, serving) for food in saved_matches
+        selected_saved = [item for item in saved_matches
+                          if request.food_id is None
+                          or str(item.get("foodMetaData", {}).get("foodId")) == request.food_id]
+        choices = [(food, serving) for food in selected_saved
                    for serving in food.get("nutritionContents", [])
                    if request.unit is None or _unit_factor(request.unit, serving.get("servingUnit")) is not None]
-        if saved_matches and not choices:
+        if saved_matches and not choices and (request.food_id is None or selected_saved):
             return _result("conflict", meal_date, normalized_time,
                            f"Existing Garmin food {request.name!r} has no compatible serving.")
         if not choices:
@@ -97,6 +107,10 @@ def log_foods(
                                f"Garmin food search failed ({type(exc).__name__}).")
             candidates = [item for item in (found or {}).get("results", [])
                           if _norm(item.get("foodMetaData", {}).get("foodName")) == _norm(request.name)]
+            candidate_ids = _food_ids(candidates)
+            if request.food_id is not None:
+                candidates = [item for item in candidates
+                              if str(item.get("foodMetaData", {}).get("foodId")) == request.food_id]
             choices = [(food, serving) for food in candidates
                        for serving in food.get("nutritionContents", [])
                        if request.unit is None or _unit_factor(request.unit, serving.get("servingUnit")) is not None]
@@ -105,11 +119,16 @@ def log_foods(
                                       for item in (found or {}).get("results", [])
                                       if item.get("foodMetaData", {}).get("foodName")})
                 return _result("conflict", meal_date, normalized_time,
-                               f"No exact food and serving match for {request.name!r}. "
-                               f"Catalog candidates: {', '.join(suggestions[:8]) or 'none'}.")
+                               (f"Food ID {request.food_id!r} did not resolve to a compatible "
+                                f"{request.name!r} serving. Available IDs: {', '.join(candidate_ids) or 'none'}."
+                                if request.food_id is not None else
+                                f"No exact food and serving match for {request.name!r}. "
+                                f"Catalog candidates: {', '.join(suggestions[:8]) or 'none'}."))
         if len(choices) != 1:
             return _result("conflict", meal_date, normalized_time,
-                           f"Expected one exact food and compatible serving for {request.name!r}; found {len(choices)}.")
+                           (f"Expected one exact food and compatible serving for {request.name!r}; "
+                            f"found {len(choices)}. Select one with @FOOD_ID: "
+                            f"{', '.join(_food_ids(food for food, _ in choices)) or 'none'}."))
         food, serving = choices[0]
         meta = food.get("foodMetaData") or {}
         try:
@@ -340,12 +359,20 @@ def _norm(value: str | None) -> str:
     return " ".join((value or "").strip().casefold().split())
 
 
+def _food_ids(foods: Any) -> list[str]:
+    return sorted({str(food.get("foodMetaData", {}).get("foodId"))
+                   for food in foods if food.get("foodMetaData", {}).get("foodId")})
+
+
 def _public_entry(item: dict[str, Any]) -> dict[str, Any]:
     request, serving = item["request"], item["serving"]
     quantity = request.quantity if request.unit else item["serving_qty"] * float(serving["numberOfUnits"])
-    return {"name": item["meta"]["foodName"], "quantity": quantity,
-            "unit": request.unit or serving["servingUnit"],
-            "serving_qty": item["serving_qty"]}
+    entry = {"name": item["meta"]["foodName"], "quantity": quantity,
+             "unit": request.unit or serving["servingUnit"],
+             "serving_qty": item["serving_qty"]}
+    if request.food_id is not None:
+        entry["food_id"] = str(item["meta"]["foodId"])
+    return entry
 
 
 def _public_logged_entry(item: dict[str, Any]) -> dict[str, Any]:

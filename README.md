@@ -223,6 +223,14 @@ training-sync garmin food-log 2026-09-30 17:50 \
 
 The command uses existing Garmin Nutrition foods, rejects ambiguous matches and duplicates, and confirms saved entries by reading the day back. If Garmin's response or read-back is uncertain, it does not retry automatically. Time is interpreted in the Garmin account's local timezone.
 
+When Garmin returns multiple exact catalog matches, the conflict message lists
+their food IDs. Select one by appending its ID to the item name:
+
+```bash
+training-sync garmin food-log 2026-09-30 17:50 \
+  --item "Kefir@5712907=180 g"
+```
+
 ### 5. Reconciling a Day Across All Services
 
 To fetch every Garmin activity for a date, update its existing Obsidian daily
