@@ -129,7 +129,7 @@ def test_build_exercise_sets_payload_extends_existing_sets_with_indices_and_time
         },
         {
             "duration": 75.0,
-            "startTime": "2026-06-15T10:00:42.0",
+            "startTime": "2026-06-15T10:00:42.5",
             "messageIndex": 1,
             "wktStepIndex": 8,
             "setType": "REST",
@@ -150,7 +150,7 @@ def test_build_exercise_sets_payload_extends_existing_sets_with_indices_and_time
     assert payload[0]["startTime"] == "2026-06-15T10:00:00.0"
     assert payload[0]["wktStepIndex"] == 7
     assert payload[1]["messageIndex"] == 1
-    assert payload[1]["startTime"] == "2026-06-15T10:00:42.0"
+    assert payload[1]["startTime"] == "2026-06-15T10:00:42.5"
     assert payload[1]["wktStepIndex"] == 8
     assert payload[2]["messageIndex"] == 2
     assert payload[2]["startTime"] == "2026-06-15T10:01:57.0"

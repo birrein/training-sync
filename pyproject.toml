@@ -7,11 +7,10 @@ name = "training-sync"
 version = "1.0.0"
 description = "Synchronize training data across Garmin Connect, Obsidian, and Weight x Reps"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "garminconnect",
     "requests",
-    "tomli; python_version < '3.11'"
 ]
 
 [project.scripts]

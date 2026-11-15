@@ -6,17 +6,13 @@ import json
 from pathlib import Path
 import re
 import shutil
+import tomllib
 
 from training_sync.domain.exercise_catalog import (
     ExerciseCatalog,
     ExerciseIdentity,
     ProviderBinding,
 )
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
-    import tomli as tomllib
 
 
 @dataclass(frozen=True)
