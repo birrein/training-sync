@@ -2,13 +2,13 @@ from pathlib import Path
 
 import pytest
 
+from training_sync.use_cases.sync_day import SYNC_DAY_DEFAULT_SCOPE
 from training_sync.vault.daily import daily_note_path
 from training_sync.vault.training_block import (
     extract_training_section,
     replace_training_section,
     training_section_has_content,
 )
-from training_sync.use_cases.sync_day import SYNC_DAY_DEFAULT_SCOPE
 
 
 def test_vault_remains_an_explicit_legacy_sync_target():

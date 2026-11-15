@@ -12,7 +12,8 @@ def decode_activity(raw: Mapping[str, object]) -> GarminActivity:
     activity_type = cast(Mapping[str, object], raw["activityType"])
     start_time = raw.get("startTimeLocal")
     if not isinstance(start_time, str):
-        raise ValueError("Garmin startTimeLocal must use YYYY-MM-DD HH:MM:SS")
+        # Provider payload contract reports malformed activity fields as ValueError.
+        raise ValueError("Garmin startTimeLocal must use YYYY-MM-DD HH:MM:SS")  # noqa: TRY004
     try:
         datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
     except ValueError as exc:

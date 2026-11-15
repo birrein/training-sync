@@ -138,7 +138,8 @@ class WeightxRepsClient:
             raise RuntimeError(payload["errors"])
         response.raise_for_status()
         if not isinstance(payload, dict):
-            raise RuntimeError("Weight x Reps GraphQL response must be a JSON object")
+            # Provider-response contract exposes malformed GraphQL envelopes as RuntimeError.
+            raise RuntimeError("Weight x Reps GraphQL response must be a JSON object")  # noqa: TRY004
         return payload.get("data", {})
 
     def _post_graphql(self, query: str, variables: dict[str, Any] | None = None):

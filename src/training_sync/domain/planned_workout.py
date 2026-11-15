@@ -8,13 +8,12 @@ execution representation for previews and idempotency keys.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date
 import hashlib
 import json
 import math
+from dataclasses import dataclass
+from datetime import date
 from typing import Any
-
 
 SUPPORTED_SCHEMA_VERSION = 1
 SUPPORTED_SPORTS = {"strength_training", "cycling", "running"}
@@ -695,7 +694,7 @@ def _parse_target(raw: Any, path: str, sport: str | None) -> TargetSpec | None:
     if other_fields:
         # `_fields` already catches unknown keys; this catches a known target
         # unit supplied for the wrong target kind.
-        other = sorted(other_fields)[0]
+        other = min(other_fields)
         raise PlannedWorkoutValidationError(
             f"target field '{other}' is incompatible with {kind} at {path}.{other}"
         )
@@ -733,7 +732,7 @@ def _optional_date(raw: Any) -> str | None:
     try:
         date.fromisoformat(value)
     except ValueError as exc:
-        raise PlannedWorkoutValidationError(f"invalid ISO date at date") from exc
+        raise PlannedWorkoutValidationError("invalid ISO date at date") from exc
     return value
 
 

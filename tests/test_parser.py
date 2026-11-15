@@ -1,5 +1,7 @@
 import pytest
+
 from training_sync.garmin.import_strength import parse_workout
+
 
 def test_parse_workout_valid_json():
     json_str = '{"date": "2026-06-11", "title": "Test Workout", "exercises": []}'

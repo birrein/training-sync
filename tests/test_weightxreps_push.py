@@ -2,11 +2,11 @@ from pathlib import Path
 
 import pytest
 
+from training_sync.use_cases.sync_day import SYNC_DAY_DEFAULT_SCOPE
 from training_sync.use_cases.weightxreps_push import push_weightxreps_day
 from training_sync.weightxreps.client import VerificationMismatch
 from training_sync.weightxreps.exercise_mapping import ExerciseMapping
 from training_sync.weightxreps.exercise_resolution import ExerciseResolutionRequired
-from training_sync.use_cases.sync_day import SYNC_DAY_DEFAULT_SCOPE
 
 
 def test_weightxreps_compatibility_scope_does_not_expand_to_intervals():

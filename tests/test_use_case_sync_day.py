@@ -4,20 +4,23 @@ from types import SimpleNamespace
 import pytest
 
 from training_sync.domain.garmin_activity import GarminActivity
-from training_sync.renderers.weightxreps_text import ParsedExercise, ParsedSetLine, ParsedTrainingDay
+from training_sync.renderers.weightxreps_text import (
+    ParsedExercise,
+    ParsedSetLine,
+    ParsedTrainingDay,
+)
 from training_sync.use_cases.sync_day import (
+    SYNC_DAY_DEFAULT_SCOPE,
     PartialSyncFailure,
     SyncDependencies,
     apply_sync_plan,
     build_complete_training_day,
     preflight_sync_day,
     sync_day,
-    SYNC_DAY_DEFAULT_SCOPE,
 )
 from training_sync.weightxreps.client import VerificationMismatch
 from training_sync.weightxreps.exercise_mapping import ExerciseMapping
 from training_sync.weightxreps.exercise_resolution import ExerciseResolutionRequired
-
 
 DATE = "2026-07-03"
 

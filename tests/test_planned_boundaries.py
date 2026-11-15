@@ -3,7 +3,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).parents[1]
 PLANNED_MODULES = (
     PROJECT_ROOT / "src/training_sync/domain/planned_workout.py",

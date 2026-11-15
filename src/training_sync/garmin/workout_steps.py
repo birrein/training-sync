@@ -8,10 +8,10 @@ publication verification and template management.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
-
+from typing import Any
 
 # This bound protects callers from provider payloads that request an enormous
 # expansion.  It is independent from Garmin's DTO-count/device capacity.
@@ -71,7 +71,8 @@ def decode_workout_steps(
     """
 
     if isinstance(max_expanded_steps, bool) or not isinstance(max_expanded_steps, int):
-        raise ValueError("max_expanded_steps must be a positive integer")
+        # Decoder validation contract keeps invalid bounds in the ValueError family.
+        raise ValueError("max_expanded_steps must be a positive integer")  # noqa: TRY004
     if max_expanded_steps <= 0:
         raise ValueError("max_expanded_steps must be a positive integer")
 

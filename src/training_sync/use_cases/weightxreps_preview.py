@@ -3,7 +3,10 @@
 from pathlib import Path
 from typing import Any
 
-from training_sync.renderers.weightxreps_text import ParsedTrainingDay, parse_weightxreps_text
+from training_sync.renderers.weightxreps_text import (
+    ParsedTrainingDay,
+    parse_weightxreps_text,
+)
 from training_sync.vault.daily import daily_note_path
 from training_sync.vault.training_block import extract_training_section
 from training_sync.weightxreps.exercise_mapping import ExerciseMapping

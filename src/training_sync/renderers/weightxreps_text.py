@@ -1,11 +1,14 @@
 """Parser for Weight x Reps-compatible text blocks."""
 
-from decimal import Decimal
 import re
+from decimal import Decimal
 
 from training_sync.domain.activity_classification import classify_activity_type
-from training_sync.domain.training import ParsedExercise, ParsedSetLine, ParsedTrainingDay
-
+from training_sync.domain.training import (
+    ParsedExercise,
+    ParsedSetLine,
+    ParsedTrainingDay,
+)
 
 DISTANCE_UNIT_KILOMETERS = "km"
 _DURATION_PREFIX = "@ Duration: "
@@ -85,10 +88,9 @@ def parse_weightxreps_text(text: str) -> ParsedTrainingDay:
     for line in lines[1:]:
         if not line:
             continue
-        if line.startswith("@ "):
-            if current_name is None and line.endswith(" bw"):
-                body_weight = float(line.removeprefix("@ ").removesuffix(" bw"))
-                continue
+        if line.startswith("@ ") and current_name is None and line.endswith(" bw"):
+            body_weight = float(line.removeprefix("@ ").removesuffix(" bw"))
+            continue
         if line.startswith("#"):
             finish_exercise()
             current_name = line.removeprefix("#")

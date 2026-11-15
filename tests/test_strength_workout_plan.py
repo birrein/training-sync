@@ -1,20 +1,37 @@
+from datetime import date
+
 import pytest
 
+from training_sync.domain import strength_workout as strength_workout_module
 from training_sync.domain.strength_workout import (
     StrengthExercise,
     StrengthSet,
     StrengthWorkout,
     strength_workout_from_dict,
 )
+from training_sync.domain.training import ParsedTrainingDay
 from training_sync.garmin.import_strength import push_workout
 from training_sync.garmin.payloads import build_exercise_sets_payload
-from training_sync.domain.training import ParsedTrainingDay
 
 
 def test_weightxreps_parser_values_are_canonical_domain_values():
-    from training_sync.renderers.weightxreps_text import ParsedTrainingDay as RendererDay
+    from training_sync.renderers.weightxreps_text import (
+        ParsedTrainingDay as RendererDay,
+    )
 
     assert RendererDay is ParsedTrainingDay
+
+
+def test_strength_workout_from_dict_uses_local_date_only_when_missing(monkeypatch):
+    class LocalDate(date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 6, 30)
+
+    monkeypatch.setattr(strength_workout_module, "date", LocalDate)
+    assert strength_workout_from_dict({}).date == "2026-06-30"
+    assert strength_workout_from_dict({}, default_date="2026-01-01").date == "2026-01-01"
+    assert strength_workout_from_dict({"date": "2026-06-15"}, "2026-01-01").date == "2026-06-15"
 
 
 def test_strength_workout_from_dict_normalizes_fitbod_payload():

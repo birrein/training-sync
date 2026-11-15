@@ -1,4 +1,4 @@
-from pathlib import Path
+from typing import ClassVar
 
 import pytest
 import requests
@@ -7,7 +7,7 @@ from training_sync.garmin import auth
 
 
 class FakeGarmin:
-    login_calls = []
+    login_calls: ClassVar[list[str]] = []
 
     def __init__(self, email=None, password=None):
         self.email = email

@@ -1,5 +1,5 @@
-from training_sync.garmin.exercise_mapping import get_mapping
 from training_sync.garmin.activity import decode_activity
+from training_sync.garmin.exercise_mapping import get_mapping
 
 
 def test_garmin_payload_decoding_is_owned_by_garmin_adapter():

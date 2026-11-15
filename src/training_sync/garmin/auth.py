@@ -22,7 +22,8 @@ def get_client() -> Garmin:
             client.login(tokenstore=str(token_file))
             needs_login = False
             logger.info("Logged in using stored token.")
-        except Exception as exc:
+        # Provider/library failures require transport classification without leaking details.
+        except Exception as exc:  # noqa: BLE001
             if _caused_by_network_failure(exc):
                 sys.exit(
                     "Error: Could not validate the stored Garmin session because a "

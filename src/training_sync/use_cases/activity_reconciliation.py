@@ -53,7 +53,8 @@ def apply_plan(plan: ReconciliationPlan, adapters: Mapping[str, object], *, auth
             verified = operation.kind is OperationKind.NOOP or adapter.verify(verified_id, operation.payload)
             state = TargetResultState.VERIFIED if verified else TargetResultState.FAILED
             results.append(TargetResult(operation.provider, verified_id, state, None if verified else "read-back mismatch"))
-        except Exception as exc:
+        # Isolate provider failures per operation so later targets still reconcile.
+        except Exception as exc:  # noqa: BLE001
             results.append(TargetResult(operation.provider, operation.remote_id, TargetResultState.FAILED, str(exc)))
     return ReconciliationResult(tuple(results))
 

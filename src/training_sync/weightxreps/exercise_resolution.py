@@ -8,7 +8,6 @@ from training_sync.weightxreps.exercise_mapping import (
     normalize_exercise_name,
 )
 
-
 ALLOWED_ACTIONS = [
     "map_to_existing",
     "create_new",

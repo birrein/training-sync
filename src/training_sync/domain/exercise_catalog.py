@@ -1,7 +1,7 @@
 """Stable local exercise identities and provider-specific bindings."""
 
-from dataclasses import dataclass, field
 import re
+from dataclasses import dataclass, field
 
 
 def normalize_exercise_identity(value: str) -> str:

@@ -1,6 +1,7 @@
 from training_sync.intervals.client import IntervalsActivity
 from training_sync.intervals.matching import match_activity
 
+
 def activity(id, external_id=None, **kwargs):
     return IntervalsActivity(str(id), "Ride", "2026-07-29T08:00:00", "Ride", external_id=external_id, moving_time=3600, distance=20, **kwargs)
 

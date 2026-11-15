@@ -25,7 +25,7 @@ def _activity_tag(type_key: str) -> str:
     return classify_activity_type(type_key).daily_tag
 
 
-def _metric_text(value: int | float) -> str:
+def _metric_text(value: float) -> str:
     return f"{value:g}"
 
 
