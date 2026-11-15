@@ -17,4 +17,7 @@ dependencies = [
 training-sync = "training_sync.cli:main"
 
 [dependency-groups]
-dev = ["pytest"]
+dev = [
+    "pytest",
+    "ruff>=0.17.5",
+]
