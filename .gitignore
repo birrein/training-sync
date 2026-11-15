@@ -27,9 +27,5 @@ garmin_token.json
 .codex/
 .opencode/
 
-# Generated Graphify outputs: keep the shared graph, report, HTML, and manifest;
-# omit local cache, interpreter, analysis, and cost-tracking sidecars.
-graphify-out/cache/
-graphify-out/.graphify_*.json
-graphify-out/.graphify_root
-graphify-out/cost.json
+# Local Graphify index and generated outputs (Graphify is disabled in this workspace).
+graphify-out/
