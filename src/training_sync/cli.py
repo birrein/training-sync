@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import secrets
 import sys
+from time import monotonic
 from urllib.parse import parse_qs, urlparse
 import webbrowser
 
@@ -62,6 +63,9 @@ from training_sync.weightxreps.exercise_resolution import ExerciseResolutionRequ
 WEIGHTXREPS_CLIENT_ID = "training-sync"
 WEIGHTXREPS_REDIRECT_URI = "http://127.0.0.1:8765/callback"
 WEIGHTXREPS_SCOPE = "jread,jwrite"
+WEIGHTXREPS_WEB_ORIGIN = "https://weightxreps.net"
+WEIGHTXREPS_AUTH_TIMEOUT = 180
+WEIGHTXREPS_CALLBACK_NAVIGATION_TIMEOUT = 3
 
 def main(argv: Sequence[str] | None = None) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
@@ -690,9 +694,9 @@ def auth_weightxreps_cli() -> None:
         state=state,
         code_challenge=pkce.code_challenge,
     )
-    print(f"Opening Weight x Reps authorization URL: {auth_url}")
-    webbrowser.open(auth_url)
-    code = _wait_for_weightxreps_callback(WEIGHTXREPS_REDIRECT_URI, expected_state=state)
+    code = _wait_for_weightxreps_callback(
+        WEIGHTXREPS_REDIRECT_URI, expected_state=state, authorization_url=auth_url
+    )
     tokens = exchange_code_for_tokens(
         client_id=WEIGHTXREPS_CLIENT_ID,
         redirect_uri=WEIGHTXREPS_REDIRECT_URI,
@@ -703,35 +707,90 @@ def auth_weightxreps_cli() -> None:
     print(f"Weight x Reps token saved to {weightxreps_token_path()}")
 
 
-def _wait_for_weightxreps_callback(redirect_uri: str, expected_state: str) -> str:
+def _wait_for_weightxreps_callback(
+    redirect_uri: str, expected_state: str, *, authorization_url: str | None = None
+) -> str:
     parsed = urlparse(redirect_uri)
     result: dict[str, str] = {}
+    navigation_deadline: float | None = None
 
     class CallbackHandler(BaseHTTPRequestHandler):
+        def do_OPTIONS(self) -> None:
+            if (
+                urlparse(self.path).path != parsed.path
+                or self.headers.get("Origin") != WEIGHTXREPS_WEB_ORIGIN
+                or self.headers.get("Access-Control-Request-Method") != "GET"
+            ):
+                self.send_error(403)
+                return
+            self.send_response(204)
+            self.send_header("Access-Control-Allow-Methods", "GET")
+            if self.headers.get("Access-Control-Request-Private-Network") == "true":
+                self.send_header("Access-Control-Allow-Private-Network", "true")
+            self.end_headers()
+
         def do_GET(self) -> None:
-            query = parse_qs(urlparse(self.path).query)
-            if query.get("state", [""])[0] != expected_state:
+            nonlocal navigation_deadline
+            target = urlparse(self.path)
+            if target.path != parsed.path:
+                self.send_error(404)
+                return
+            query = parse_qs(target.query)
+            if query.get("state") != [expected_state]:
                 self.send_error(400, "Invalid OAuth state")
                 return
-            if "error" in query:
-                result["error"] = query["error"][0]
-                self.send_error(400, result["error"])
+            if error := query.get("error", [""])[0]:
+                if "code" not in result:
+                    result["error"] = error
+                self.send_error(400, error)
                 return
-            result["code"] = query.get("code", [""])[0]
+            codes = query.get("code", [])
+            if len(codes) != 1:
+                self.send_error(400, "Missing or invalid OAuth code")
+                return
+            if result.setdefault("code", codes[0]) != codes[0]:
+                self.send_error(400, "Unexpected OAuth code")
+                return
+            if (
+                self.headers.get("Origin") == WEIGHTXREPS_WEB_ORIGIN
+                and self.headers.get("Sec-Fetch-Mode") != "navigate"
+            ):
+                # The provider navigates to the same URL after its fetch completes.
+                if navigation_deadline is None:
+                    navigation_deadline = monotonic() + WEIGHTXREPS_CALLBACK_NAVIGATION_TIMEOUT
+            else:
+                navigation_deadline = monotonic()
             self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.end_headers()
             self.wfile.write(b"Weight x Reps authorization complete. You can close this tab.")
+
+        def end_headers(self) -> None:
+            # Weight x Reps follows the redirect with fetch before navigating.
+            if self.headers.get("Origin") == WEIGHTXREPS_WEB_ORIGIN:
+                self.send_header("Access-Control-Allow-Origin", WEIGHTXREPS_WEB_ORIGIN)
+            self.send_header("Cache-Control", "no-store")
+            super().end_headers()
 
         def log_message(self, format: str, *args) -> None:
             return
 
-    server = HTTPServer((parsed.hostname or "127.0.0.1", parsed.port or 80), CallbackHandler)
-    print("Waiting for Weight x Reps authorization callback...")
-    server.handle_request()
-    server.server_close()
+    with HTTPServer((parsed.hostname or "127.0.0.1", parsed.port or 80), CallbackHandler) as server:
+        if authorization_url is not None:
+            print(f"Opening Weight x Reps authorization URL: {authorization_url}")
+            print("Your browser may ask Weight x Reps for permission to reach the local callback.")
+            webbrowser.open(authorization_url)
+        print("Waiting for Weight x Reps authorization callback...")
+        deadline = monotonic() + WEIGHTXREPS_AUTH_TIMEOUT
+        while "error" not in result:
+            remaining = min(deadline, navigation_deadline or deadline) - monotonic()
+            if remaining <= 0:
+                break
+            server.timeout = remaining
+            server.handle_request()
 
     if result.get("error"):
         raise RuntimeError(result["error"])
     if not result.get("code"):
-        raise RuntimeError("Weight x Reps authorization code was not received")
+        raise RuntimeError("Timed out waiting for Weight x Reps authorization. Run auth again.")
     return result["code"]

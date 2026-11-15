@@ -1,6 +1,10 @@
 import io
 import json
 import sys
+from concurrent.futures import ThreadPoolExecutor
+from http.client import HTTPConnection
+from http.server import HTTPServer
+from queue import Queue
 
 import pytest
 
@@ -10,6 +14,69 @@ from training_sync.weightxreps.exercise_resolution import (
     ExerciseResolutionRequired,
     UnresolvedExercise,
 )
+
+
+def test_weightxreps_callback_waits_for_code_after_browser_preflight(monkeypatch):
+    bound_port = Queue()
+
+    def bind_test_server(address, handler):
+        server = HTTPServer((address[0], 0), handler)
+        bound_port.put(server.server_port)
+        return server
+
+    monkeypatch.setattr(cli, "HTTPServer", bind_test_server)
+    monkeypatch.setattr(cli, "WEIGHTXREPS_AUTH_TIMEOUT", 3)
+    origin = "https://weightxreps.net"
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        callback = executor.submit(
+            cli._wait_for_weightxreps_callback,
+            "http://127.0.0.1:8765/callback",
+            "expected-state",
+        )
+        port = bound_port.get(timeout=2)
+
+        def request(method, path, **headers):
+            connection = HTTPConnection("127.0.0.1", port, timeout=2)
+            try:
+                connection.request(method, path, headers=headers)
+                response = connection.getresponse()
+                response.read()
+                return response.status, dict(response.getheaders())
+            finally:
+                connection.close()
+
+        status, unrelated_origin = request(
+            "OPTIONS",
+            "/callback",
+            Origin="https://example.org",
+            **{"Access-Control-Request-Method": "GET"},
+        )
+        assert status == 403
+        assert "Access-Control-Allow-Origin" not in unrelated_origin
+
+        status, preflight = request(
+            "OPTIONS",
+            "/callback",
+            Origin=origin,
+            **{
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Private-Network": "true",
+            },
+        )
+        assert status == 204
+        assert preflight["Access-Control-Allow-Origin"] == origin
+        assert preflight["Access-Control-Allow-Private-Network"] == "true"
+
+        status, _ = request("GET", "/callback?state=wrong-state&code=ignored")
+        assert status == 400
+        status, response = request(
+            "GET", "/callback?state=expected-state&code=authorization-code", Origin=origin
+        )
+        assert status == 200
+        assert response["Access-Control-Allow-Origin"] == origin
+        status, _ = request("GET", "/callback?state=expected-state&code=authorization-code")
+        assert status == 200
+        assert callback.result(timeout=2) == "authorization-code"
 
 
 def test_training_sync_version_uses_installed_distribution_metadata(monkeypatch, capsys):
