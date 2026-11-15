@@ -7,29 +7,35 @@ surface, and require explicit authorization for every mutation.
 
 from __future__ import annotations
 
-from copy import deepcopy
-from dataclasses import dataclass, asdict
-from datetime import date
 import hashlib
 import json
+from collections.abc import Mapping
+from copy import deepcopy
+from dataclasses import asdict, dataclass
+from datetime import date
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from training_sync.config import planned_workout_journal_path
 from training_sync.domain.planned_workout import PlannedWorkout
-from training_sync.garmin.planned_workouts import (
-    GARMIN_KILOGRAM_UNIT,
-    GarminWorkoutProjection,
-    project_planned_workout,
-)
 from training_sync.garmin.diagnostics import (
     extract_provider_diagnostics,
     format_provider_diagnostics,
     sanitize_provider_diagnostics,
 )
+from training_sync.garmin.planned_workouts import (
+    GARMIN_KILOGRAM_UNIT,
+    GarminWorkoutProjection,
+    project_planned_workout,
+)
+from training_sync.garmin.workout_steps import (
+    DecodedWorkoutSteps,
+    WorkoutStepDecodeError,
+    decode_workout_steps,
+)
 from training_sync.use_cases.publish_workout import (
-    _calendar_items,
     _account_key,
+    _calendar_items,
     _extract_schedule_id,
     _extract_workout_id,
     _Journal,
@@ -37,13 +43,8 @@ from training_sync.use_cases.publish_workout import (
     _same_weight,
     _weight_in_grams,
     _workout_items,
-    verify_saved_workout,
     publish_workout,
-)
-from training_sync.garmin.workout_steps import (
-    DecodedWorkoutSteps,
-    WorkoutStepDecodeError,
-    decode_workout_steps,
+    verify_saved_workout,
 )
 
 
@@ -383,7 +384,7 @@ def delete_workout(
 
     if yes is not None:
         authorized = yes
-    existing = read_workout(client, workout_id)
+    read_workout(client, workout_id)
     if not authorized:
         return ManagementResult(
             state="preview",
@@ -1234,11 +1235,13 @@ def _schedule_calendar_authorized(
             schedule_id = _find_schedule_id(client, workout_id, requested)
         if schedule_id is None:
             raise CalendarOperationError("Garmin returned no schedule ID")
-    except Exception as exc:
+    # Scheduling can succeed despite a lost response; reconcile before reporting state.
+    except Exception as exc:  # noqa: BLE001
         diagnostics = extract_provider_diagnostics(exc, stage="schedule")
         try:
             matches = _calendar_matches(client, workout_id, requested)
-        except Exception as reconcile_exc:
+        # Failed reconciliation cannot establish whether the provider scheduled it.
+        except Exception as reconcile_exc:  # noqa: BLE001
             _record_calendar_state(
                 path,
                 key,
@@ -1397,7 +1400,8 @@ def move_calendar_workout(
                 replacement_id = _find_schedule_id(client, workout_id, destination)
             if replacement_id is None:
                 raise CalendarOperationError("Garmin returned no replacement schedule ID")
-        except Exception as exc:
+        # Replacement scheduling outcome is uncertain; retain original and journal it.
+        except Exception as exc:  # noqa: BLE001
             _record_calendar_state(
                 path,
                 key,
@@ -1449,7 +1453,8 @@ def move_calendar_workout(
     try:
         with _publication_lock(path, key):
             _unschedule(client, schedule_id)
-    except Exception as exc:
+    # Replacement was verified; failed original removal is reported as partial.
+    except Exception as exc:  # noqa: BLE001
         _record_calendar_state(
             path,
             key,
@@ -1584,7 +1589,8 @@ def remove_calendar_workout(
         )
         try:
             _unschedule(client, schedule_id)
-        except Exception as exc:
+        # A lost removal response is uncertain until a separate absence read-back.
+        except Exception as exc:  # noqa: BLE001
             _record_calendar_state(
                 path,
                 key,
@@ -1679,7 +1685,7 @@ def replace_calendar_workout(
     old_date = _item_calendar_date(original)
     if old_workout_id is None or old_date is None:
         raise CalendarOperationError("selected schedule has incomplete identity")
-    projection = project_planned_workout(workout)
+    project_planned_workout(workout)
     if not authorized:
         return CalendarResult(
             state="preview",
@@ -1737,7 +1743,8 @@ def replace_calendar_workout(
     try:
         with _publication_lock(path, key):
             _unschedule(client, schedule_id)
-    except Exception as exc:
+    # Replacement was verified; failed original removal is reported as partial.
+    except Exception as exc:  # noqa: BLE001
         _record_calendar_state(
             path,
             key,
@@ -1835,7 +1842,8 @@ def _calendar_date(value: str | date) -> date:
     if isinstance(value, date):
         return value
     if not isinstance(value, str):
-        raise ValueError("calendar dates must be ISO dates")
+        # Calendar input contract keeps invalid date types/formats as ValueError.
+        raise ValueError("calendar dates must be ISO dates")  # noqa: TRY004
     try:
         return date.fromisoformat(value)
     except ValueError as exc:

@@ -5,8 +5,8 @@ import pytest
 
 from training_sync.domain.planned_workout import planned_workout_from_dict
 from training_sync.garmin.planned_workouts import (
-    ExerciseResolutionError,
     ExerciseResolutionConflictError,
+    ExerciseResolutionError,
     ProviderStepLimitError,
     project_planned_workout,
 )
@@ -15,7 +15,6 @@ from training_sync.garmin.workout_steps import (
     decode_workout_steps,
 )
 from training_sync.renderers.planned_workout import render_planned_workout
-
 
 FIXTURES = Path(__file__).parent / "fixtures" / "garmin"
 

@@ -9,12 +9,12 @@ read the vault, or mutate any local training record.
 
 from __future__ import annotations
 
-from copy import deepcopy
-from dataclasses import dataclass
-from copy import deepcopy
 import json
 import math
-from typing import Any, Mapping
+from collections.abc import Mapping
+from copy import deepcopy
+from dataclasses import dataclass
+from typing import Any
 
 from training_sync.domain.exercise_catalog import normalize_exercise_identity
 from training_sync.domain.planned_workout import (
@@ -37,7 +37,6 @@ from training_sync.garmin.workout_steps import (
     RepeatGroupLayout,
     decode_workout_steps,
 )
-
 
 GRAMS_PER_KG = 1000.0
 
@@ -401,20 +400,22 @@ def _append_strength_exercise(
                         both_sides=False,
                     )
                 )
-                if side_index + 1 < len(exercise.sides):
-                    if exercise.rest_between_sides is not None:
-                        active_steps.append(
-                            _rest_step(
-                                exercise.rest_between_sides,
-                                order=0,
-                                description=(
-                                    f"Rest {_format_number(exercise.rest_between_sides.value)} "
-                                    f"seconds between sides of {exercise.name}"
-                                    if exercise.rest_between_sides.until == "time"
-                                    else f"Manual rest between sides of {exercise.name}"
-                                ),
-                            )
+                if (
+                    side_index + 1 < len(exercise.sides)
+                    and exercise.rest_between_sides is not None
+                ):
+                    active_steps.append(
+                        _rest_step(
+                            exercise.rest_between_sides,
+                            order=0,
+                            description=(
+                                f"Rest {_format_number(exercise.rest_between_sides.value)} "
+                                f"seconds between sides of {exercise.name}"
+                                if exercise.rest_between_sides.until == "time"
+                                else f"Manual rest between sides of {exercise.name}"
+                            ),
                         )
+                    )
         else:
             both_sides = planned_set.load.basis == "per_hand"
             active_steps.append(
@@ -920,7 +921,7 @@ def _estimated_duration(steps: tuple[dict[str, Any], ...]) -> int:
     for step in steps:
         if step["endCondition"]["conditionTypeKey"] == "time":
             total += float(step["endConditionValue"] or 0)
-    return max(0, int(math.ceil(total)))
+    return max(0, math.ceil(total))
 
 
 def _workout_description(workout: PlannedWorkout) -> str:
