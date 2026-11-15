@@ -1,7 +1,7 @@
 # Behavior-preserving Ruff cleanup
 
 Resolve lint findings without changing exception contracts, provider recovery, or local-date semantics.
-Status: implementation, independent verification and authorized work-unit commits are complete on `chore/ruff-cleanup`. No push or merge into `main`. Shared-cleanup native review was approved and acknowledged; dependency/provider slices did not require native review.
+Status: implementation, verification and local commits are complete. Publication of the accepted base and a three-PR Ruff stack is now explicitly authorized and in progress (L21). Shared-cleanup native review was approved and acknowledged; dependency/provider slices did not require native review.
 
 ## Specs
 
@@ -10,6 +10,7 @@ Status: implementation, independent verification and authorized work-unit commit
 3. **S3** — “para estos ajustes creo que es necesario documentar en spec/odd o no se justifica?”
 4. **S4** — “autorizo” — approval to document the decisions, repair verifier preparation, and perform a new bounded independent verification.
 5. **S5** — “si, hazlo” — approval to create the proposed Ruff commits, including its development dependency, without pushing or mixing unrelated pending changes.
+6. **S6** — “2” — publication decision clarified by the subsequent explicit UI choices recorded in L21; these supersede the earlier no-push boundary only for the named remote branches and PR stack.
 
 ## Tasks
 
@@ -19,6 +20,9 @@ Status: implementation, independent verification and authorized work-unit commit
 - **T4 — done** [S5]: Commit the Ruff development dependency and maintenance record; route: parent Git-only delivery; commit: `f18882b`. Risk: item 5 — development dependency.
 - **T5 — done** [S1–S2, S5]: Commit shared domain/adapter/CLI cleanup with its tests; route: parent Git-only delivery; commit: `6b054b1`. Risk: item 3 — shared helpers.
 - **T6 — done** [S1–S5]: Commit provider workflow cleanup, recovery tests and final maintenance evidence; route: parent Git-only delivery; source commit: `422a194`, followed by this document's evidence-only closure. Risk: item 3 — provider recovery contracts.
+- **T7 — in_progress** [S6]: Publish the five accepted base commits to `origin/main`; route: explicit non-force push; commit: existing base `317ea0b`.
+- **T8 — pending** [S6]: Publish the three Ruff stack branches; route: explicit non-force pushes; commits: `f18882b`, `6b054b1`, final Ruff/doc head.
+- **T9 — pending** [S6]: Open scoped stacked PRs and report available CI checks; route: target-bound GitHub delivery; commits: existing verified work units.
 
 ## Log
 
@@ -42,3 +46,5 @@ Status: implementation, independent verification and authorized work-unit commit
 - **L18 — Provider slice:** `422a194` contains provider recovery policy and tests (281 changed lines). Assessment against full base `6b054b1e49269bb3a695ea7b95a74fbe39580b9a` returned medium/under-budget with `reviewDue=false`; no reviewer capture was due. The wrapper returned `request-context-requires-fresh-review`, not approval; the explicit assessment is the evidence for not starting a review.
 - **L19 — Exact committed-snapshot checks:** Separate `git archive` snapshots were tested using existing Python dependencies and snapshot-local `PYTHONPATH`: `f18882b` **486 passed**, `6b054b1` **487 passed**, `422a194` **489 passed** (all exit 0). Final source Ruff, offline lock validation, CLI help and diff checks passed before delivery. SHA-256 comparisons confirmed all four excluded local files were byte-for-byte preserved; they remain outside the commits. An initial staging cardinality assertion expected 43 rather than 44 shared paths and stopped before staging; after checking the exact paths, the count was corrected. No test failure or source correction resulted.
 - **L20 — Delivery:** Work-unit boundaries are `317ea0b..f18882b`, `f18882b..6b054b1`, and `6b054b1..422a194`; the final documentation-only commit closes this record. No accumulated-branch native review, push, merge, reset, restore or cleanup of unrelated files was performed. `main` remains at the starting commit.
+- **L21 — Publication authorization:** After asking what follows in ODD, the user chose “2” and then selected “Push y preparar una PR”. Remote metadata confirmed `https://github.com/birrein/training-sync`, default branch `main`, with five local base commits unpublished. A direct Ruff PR would include 654 additions and 80,152 deletions from prior Graphify work. The user explicitly selected “Publicar main local y después PRs apiladas de Ruff”, authorizing the five prior commits to `origin/main`, followed by small Ruff PRs. This is new publication authority, not authority inferred from implementation/review. No force push or merge of Ruff PRs is authorized.
+- **L22 — Chosen stack strategy:** Stacked PRs: `main` ← `chore/ruff-tooling` at `f18882b` (dependency, 76 changed lines); `chore/ruff-tooling` ← `refactor/ruff-shared-cleanup` at `6b054b1` (shared cleanup, 257 lines); `refactor/ruff-shared-cleanup` ← `chore/ruff-cleanup` (provider recovery plus closing/publication docs, final count checked before opening). Each PR includes its dependency diagram, start/end boundary, observed tests, rollback scope and excluded work. The four unrelated local files remain outside all pushes.
