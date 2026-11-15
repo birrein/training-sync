@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date, datetime, time, timezone
 import math
 import re
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, time
 from typing import Any
 
 LOG_PATH = "/nutrition-service/food/logs"
@@ -72,7 +72,8 @@ def log_foods(
 
     try:
         before = client.connectapi(f"{LOG_PATH}/{meal_date}")
-    except Exception as exc:
+    # Provider lookup failures are reported as operation results before any write.
+    except Exception as exc:  # noqa: BLE001
         return _result("failed", meal_date, normalized_time,
                        f"Garmin food log lookup failed ({type(exc).__name__}); no write was sent.")
     try:
@@ -102,7 +103,8 @@ def log_foods(
                     SEARCH_PATH,
                     params={"searchExpression": request.name, "start": 0, "limit": 20},
                 )
-            except Exception as exc:
+            # Provider search failures become a safe failed result; nothing is written.
+            except Exception as exc:  # noqa: BLE001
                 return _result("failed", meal_date, normalized_time,
                                f"Garmin food search failed ({type(exc).__name__}).")
             candidates = [item for item in (found or {}).get("results", [])
@@ -154,7 +156,8 @@ def log_foods(
 
     try:
         meal_data = client.connectapi(f"{MEALS_PATH}/{meal_date}") or {}
-    except Exception as exc:
+    # Provider meal lookup failures are reported without attempting a write.
+    except Exception as exc:  # noqa: BLE001
         return _result("failed", meal_date, normalized_time,
                        f"Garmin meal lookup failed ({type(exc).__name__}).")
     meals = meal_data.get("meals", [])
@@ -179,12 +182,14 @@ def log_foods(
     write_error = None
     try:
         client.client.put("connectapi", LOG_PATH, json=payload, api=True)
-    except Exception as exc:  # response may be lost after Garmin applied the write
+    # The provider may apply the write before losing its response; read back once.
+    except Exception as exc:  # noqa: BLE001
         write_error = type(exc).__name__
 
     try:
         after = client.connectapi(f"{LOG_PATH}/{meal_date}")
-    except Exception as exc:
+    # Failed post-write read-back leaves the outcome uncertain; never retry here.
+    except Exception as exc:  # noqa: BLE001
         return _result("uncertain", meal_date, normalized_time,
                        f"Write outcome is unknown; Garmin read-back failed ({type(exc).__name__}). Do not retry yet.",
                        meal_name=meal.get("mealName"))
@@ -251,7 +256,7 @@ def _meal_for_time(meals: list[dict[str, Any]], requested: time) -> dict[str, An
 def _payload_item(item: dict[str, Any], meal_id: int, meal_time: str) -> dict[str, Any]:
     meta, serving = item["meta"], item["serving"]
     return {
-        "logTimestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+        "logTimestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
         "logSource": "GCW", "logCategory": "REGULAR_LOG", "mealTime": meal_time,
         "action": "ADD", "mealId": meal_id, "foodId": meta["foodId"],
         "servingId": serving["servingId"], "source": meta["source"],
@@ -263,15 +268,18 @@ def _payload_item(item: dict[str, Any], meal_id: int, meal_time: str) -> dict[st
 def _validated_log_foods(log: Any) -> list[dict[str, Any]]:
     """Require the day-log fields needed for safe resolution, dedupe, and verification."""
     if not isinstance(log, dict):
-        raise ValueError("expected a JSON object")
+        # Payload validation contract uses ValueError for malformed response shapes.
+        raise ValueError("expected a JSON object")  # noqa: TRY004
     details = log.get("mealDetails")
     saved = log.get("loggedFoodsWithServingSizes")
     if not isinstance(details, list) or not isinstance(saved, list):
-        raise ValueError("expected mealDetails and loggedFoodsWithServingSizes lists")
+        # Payload validation contract uses ValueError for malformed response shapes.
+        raise ValueError("expected mealDetails and loggedFoodsWithServingSizes lists")  # noqa: TRY004
     foods: list[dict[str, Any]] = []
     for detail in details:
         if not isinstance(detail, dict) or not isinstance(detail.get("loggedFoods"), list):
-            raise ValueError("mealDetails entry has no loggedFoods list")
+            # Payload validation contract uses ValueError for malformed response shapes.
+            raise ValueError("mealDetails entry has no loggedFoods list")  # noqa: TRY004
         foods.extend(detail["loggedFoods"])
     for food in foods:
         if not isinstance(food, dict) or _preservation_key(food) is None:
@@ -279,7 +287,8 @@ def _validated_log_foods(log: Any) -> list[dict[str, Any]]:
     for food in saved:
         if (not isinstance(food, dict) or not isinstance(food.get("foodMetaData"), dict)
                 or not isinstance(food.get("nutritionContents"), list)):
-            raise ValueError("saved food entry has malformed metadata or serving list")
+            # Payload validation contract uses ValueError for malformed response shapes.
+            raise ValueError("saved food entry has malformed metadata or serving list")  # noqa: TRY004
     return foods
 
 

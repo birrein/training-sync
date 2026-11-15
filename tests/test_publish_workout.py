@@ -1,19 +1,19 @@
 from __future__ import annotations
 
-from copy import deepcopy
 import json
-from threading import Lock
 import time
+from copy import deepcopy
+from threading import Lock
 
 import pytest
 
 from training_sync.domain.planned_workout import planned_workout_from_dict
+from training_sync.garmin.planned_workouts import project_planned_workout
 from training_sync.use_cases.publish_workout import (
     PublicationConflictError,
     build_publication_marker,
     publish_workout,
 )
-from training_sync.garmin.planned_workouts import project_planned_workout
 
 
 def strength_plan(*, date=None):
@@ -505,6 +505,58 @@ def test_ambiguous_remote_matches_remain_uncertain_without_repost():
     assert result.state == "uncertain"
     assert result.workout_id is None
     assert client.upload_calls == 1
+
+
+@pytest.mark.parametrize("candidate_is_complete", [True, False])
+def test_lost_response_uses_listed_candidate_if_fetch_fails(
+    candidate_is_complete, tmp_path
+):
+    class CandidateFetchFailureClient(FakeGarminClient):
+        def get_workouts(self, start=0, limit=100):
+            candidates = super().get_workouts(start, limit)
+            if not candidate_is_complete:
+                candidates[0]["workoutSegments"][0]["workoutSteps"].pop()
+            return candidates
+
+        def get_workout_by_id(self, workout_id):
+            self.fetch_calls = getattr(self, "fetch_calls", 0) + 1
+            if self.timeout_after_upload and not getattr(self, "candidate_fetch_failed", False):
+                self.candidate_fetch_failed = True
+                raise RuntimeError("candidate fetch unavailable")
+            return super().get_workout_by_id(workout_id)
+
+    client = CandidateFetchFailureClient()
+    client.timeout_after_upload = True
+    journal_path = tmp_path / "journal.json"
+
+    result = publish_workout(
+        client,
+        strength_plan(),
+        authorized=True,
+        journal_path=journal_path,
+    )
+
+    assert client.upload_calls == 1
+    assert client.schedule_calls == 0
+    assert len(client.workouts) == 1
+    assert client.fetch_calls == (2 if candidate_is_complete else 1)
+    journal = json.loads(journal_path.read_text())
+    entry = next(iter(journal["entries"].values()))
+    assert entry["state"] == ("template_verified" if candidate_is_complete else "uncertain")
+    if candidate_is_complete:
+        assert result.state == "verified"
+        assert result.workout_id == 100
+        assert result.template_state == "verified"
+        assert result.schedule_state == "not_requested"
+        assert result.verified is True
+        assert entry["workout_id"] == 100
+    else:
+        assert result.state == "uncertain"
+        assert result.workout_id is None
+        assert result.template_state == "uncertain"
+        assert result.schedule_state == "not_requested"
+        assert "candidate fetch unavailable" not in result.error
+        assert entry.get("workout_id") is None
 
 
 def test_same_key_and_hash_reuses_verified_publication(tmp_path):

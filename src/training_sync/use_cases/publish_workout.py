@@ -8,30 +8,31 @@ preview and does not require a client, a token, or a vault.
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-from copy import deepcopy
-from dataclasses import dataclass, asdict
-from datetime import date
 import fcntl
 import hashlib
 import json
-from pathlib import Path
 import threading
-from typing import Any, Iterable, Mapping
+from collections.abc import Iterable, Mapping
+from contextlib import contextmanager
+from copy import deepcopy
+from dataclasses import asdict, dataclass
+from datetime import date
+from pathlib import Path
+from typing import Any
 
 from training_sync.config import planned_workout_journal_path
 from training_sync.domain.planned_workout import (
     PlannedWorkout,
     planned_workout_from_dict,
 )
-from training_sync.garmin.planned_workouts import (
-    GarminWorkoutProjection,
-    project_planned_workout,
-)
 from training_sync.garmin.diagnostics import (
     extract_provider_diagnostics,
     format_provider_diagnostics,
     sanitize_provider_diagnostics,
+)
+from training_sync.garmin.planned_workouts import (
+    GarminWorkoutProjection,
+    project_planned_workout,
 )
 from training_sync.garmin.workout_steps import (
     RepeatGroupLayout,
@@ -234,7 +235,8 @@ def publish_workout(
                     workout_id=workout_id,
                     desired_payload_hash=_payload_hash(payload),
                 )
-            except Exception as exc:
+            # Upload responses may be lost after creation; reconcile before any retry.
+            except Exception as exc:  # noqa: BLE001
                 diagnostics = extract_provider_diagnostics(exc, stage="upload")
                 operation_diagnostics = diagnostics
                 reconciliation = _reconcile_upload(
@@ -333,22 +335,25 @@ def publish_workout(
 
         prior_schedule_id = _value_or_none(entry.get("schedule_id")) if entry else None
         prior_schedule_date = entry.get("schedule_date") if entry else None
-        if prior_schedule_id is not None and prior_schedule_date == requested_date:
-            if _verify_schedule(client, prior_schedule_id, workout_id, requested_date)[0]:
-                return PublicationResult(
-                    state="scheduled",
-                    template_state="verified",
-                    schedule_state="verified",
-                    workout_id=workout_id,
-                    schedule_id=prior_schedule_id,
-                    schedule_date=requested_date,
-                    verified=True,
-                    scheduled=True,
-                    reused=True,
-                    marker=marker,
-                    preview=projection.preview,
-                    diagnostics=operation_diagnostics,
-                )
+        if (
+            prior_schedule_id is not None
+            and prior_schedule_date == requested_date
+            and _verify_schedule(client, prior_schedule_id, workout_id, requested_date)[0]
+        ):
+            return PublicationResult(
+                state="scheduled",
+                template_state="verified",
+                schedule_state="verified",
+                workout_id=workout_id,
+                schedule_id=prior_schedule_id,
+                schedule_date=requested_date,
+                verified=True,
+                scheduled=True,
+                reused=True,
+                marker=marker,
+                preview=projection.preview,
+                diagnostics=operation_diagnostics,
+            )
 
         _save_entry(
             journal,
@@ -366,7 +371,8 @@ def publish_workout(
                 schedule_id = _find_schedule_id(client, workout_id, requested_date)
             if schedule_id is None:
                 raise RuntimeError("Garmin returned no schedule ID for the requested date")
-        except Exception as exc:
+        # Scheduling can apply despite an error response; journal failure without retry.
+        except Exception as exc:  # noqa: BLE001
             schedule_diagnostics = extract_provider_diagnostics(exc, stage="schedule")
             _save_entry(
                 journal,
@@ -517,7 +523,8 @@ def _verify_remote_template(
 ) -> tuple[bool, tuple[str, ...]]:
     try:
         saved = _get_workout(client, workout_id)
-    except Exception as exc:
+    # Any provider read-back failure prevents semantic verification (fail closed).
+    except Exception as exc:  # noqa: BLE001
         return False, (f"Garmin workout read-back failed: {_safe_error(exc)}",)
     if not isinstance(saved, Mapping):
         return False, ("Garmin workout read-back was not an object",)
@@ -532,8 +539,10 @@ def _compare_repeat_layout(
 
     if len(expected) != len(actual):
         return [
-            "repeat group representation mismatch: "
-            f"expected {len(expected)} groups, saved {len(actual)}"
+            (
+                "repeat group representation mismatch: "
+                f"expected {len(expected)} groups, saved {len(actual)}"
+            )
         ]
     errors: list[str] = []
     for group_index, (expected_group, actual_group) in enumerate(
@@ -721,7 +730,8 @@ def _reconcile_upload(
     safe_diagnostics = sanitize_provider_diagnostics(diagnostics)
     try:
         candidates, incomplete = _list_workouts(client)
-    except Exception as exc:
+    # Inventory failure leaves lost-upload reconciliation uncertain; never repost.
+    except Exception as exc:  # noqa: BLE001
         return PublicationResult(
             state="uncertain",
             template_state="uncertain",
@@ -741,7 +751,8 @@ def _reconcile_upload(
             fetched = _get_workout(client, workout_id)
             if isinstance(fetched, Mapping):
                 saved = fetched
-        except Exception:
+        # Use only the listed candidate as a best-effort fallback; verify it semantically.
+        except Exception:  # noqa: BLE001, S110
             pass
         if verify_saved_workout(projection, saved, require_layout=require_layout)[0]:
             exact_ids.append(workout_id)
@@ -822,7 +833,8 @@ def _normalize_schedule_date(value: str | date | None) -> str | None:
     if isinstance(value, date):
         return value.isoformat()
     if not isinstance(value, str):
-        raise ValueError("schedule_date must be an ISO date")
+        # Public schedule-date validation contract reports invalid inputs as ValueError.
+        raise ValueError("schedule_date must be an ISO date")  # noqa: TRY004
     try:
         return date.fromisoformat(value).isoformat()
     except ValueError as exc:
@@ -867,7 +879,7 @@ def _payload_hash(payload: Mapping[str, Any]) -> str:
 
 
 def _save_entry(
-    journal: "_Journal",
+    journal: _Journal,
     key: str,
     workout: PlannedWorkout,
     marker: str,
@@ -1039,7 +1051,8 @@ def _verify_schedule(
         return False, ("Garmin schedule read-back is unavailable",)
     try:
         saved = method(schedule_id)
-    except Exception as exc:
+    # Provider read-back failure is not proof of schedule state; fail closed.
+    except Exception as exc:  # noqa: BLE001
         return False, (f"schedule read-back failed: {_safe_error(exc)}",)
     if not isinstance(saved, Mapping):
         return False, ("schedule read-back was not an object",)
