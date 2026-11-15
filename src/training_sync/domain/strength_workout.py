@@ -1,7 +1,7 @@
 """Strength workout domain objects and input normalization."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date
 from typing import Any
 
 
@@ -29,10 +29,10 @@ def strength_workout_from_dict(
     default_date: str | None = None,
 ) -> StrengthWorkout:
     """Normalize Fitbod-like workout data into a strength workout."""
-    date = (
+    workout_date = (
         workout_data.get("date")
         or default_date
-        or datetime.today().strftime("%Y-%m-%d")
+        or date.today().isoformat()
     )
     exercises = [
         StrengthExercise(
@@ -49,7 +49,7 @@ def strength_workout_from_dict(
     ]
 
     return StrengthWorkout(
-        date=date,
+        date=workout_date,
         title=workout_data.get("title"),
         exercises=exercises,
     )

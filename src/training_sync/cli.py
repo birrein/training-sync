@@ -1,20 +1,21 @@
 """Command-line interface for training-sync."""
 
 import argparse
+import json
+import os
+import secrets
+import sys
+import webbrowser
 from collections.abc import Sequence
 from dataclasses import asdict
 from datetime import date as calendar_date
 from datetime import time as clock_time
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from importlib.metadata import PackageNotFoundError, version as distribution_version
-import json
-import os
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as distribution_version
 from pathlib import Path
-import secrets
-import sys
 from time import monotonic
 from urllib.parse import parse_qs, urlparse
-import webbrowser
 
 from training_sync.config import (
     load_intervals_api_key,
@@ -24,13 +25,13 @@ from training_sync.config import (
     weightxreps_token_path,
 )
 from training_sync.domain.planned_workout import planned_workout_from_dict
-from training_sync.intervals.client import IntervalsClient, IntervalsError
 from training_sync.garmin.auth import get_client
 from training_sync.garmin.fetch import fetch_and_print_activities
 from training_sync.garmin.import_strength import parse_workout, push_workout
 from training_sync.garmin.nutrition import log_foods, parse_food_item
 from training_sync.garmin.planned_workouts import project_planned_workout
 from training_sync.garmin.weight import print_weight_tag
+from training_sync.intervals.client import IntervalsClient, IntervalsError
 from training_sync.use_cases.manage_planned_workouts import (
     delete_workout,
     duplicate_workout,
@@ -45,7 +46,9 @@ from training_sync.use_cases.manage_planned_workouts import (
 )
 from training_sync.use_cases.publish_workout import publish_workout
 from training_sync.use_cases.sync_day import SyncDependencies, sync_day
-from training_sync.use_cases.weightxreps_preview import preview_weightxreps_day_from_vault
+from training_sync.use_cases.weightxreps_preview import (
+    preview_weightxreps_day_from_vault,
+)
 from training_sync.use_cases.weightxreps_push import push_weightxreps_day
 from training_sync.weightxreps.auth import (
     TokenSet,
@@ -57,7 +60,11 @@ from training_sync.weightxreps.auth import (
     save_tokens,
 )
 from training_sync.weightxreps.client import WeightxRepsClient
-from training_sync.weightxreps.exercise_mapping import add_alias_mapping, add_create_mapping, load_exercise_mappings
+from training_sync.weightxreps.exercise_mapping import (
+    add_alias_mapping,
+    add_create_mapping,
+    load_exercise_mappings,
+)
 from training_sync.weightxreps.exercise_resolution import ExerciseResolutionRequired
 
 WEIGHTXREPS_CLIENT_ID = "training-sync"
@@ -339,8 +346,12 @@ def intervals_cli(args: argparse.Namespace) -> None:
         elif args.intervals_command == "show":
             print(json.dumps(asdict(client.get_activity(args.activity_id)), indent=2))
         elif args.intervals_command == "upload":
-            payload = {"external_id": args.external_id, "artifact": (args.artifact, open(args.artifact, "rb"))}
-            _intervals_mutation(client, "upload", None, payload, yes=args.yes)
+            with open(args.artifact, "rb") as artifact:
+                payload = {
+                    "external_id": args.external_id,
+                    "artifact": (args.artifact, artifact),
+                }
+                _intervals_mutation(client, "upload", None, payload, yes=args.yes)
         elif args.intervals_command == "update":
             _intervals_mutation(client, "update", args.activity_id, {"name": args.name}, yes=args.yes)
         elif args.intervals_command == "delete":

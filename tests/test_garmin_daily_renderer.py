@@ -1,7 +1,6 @@
 from training_sync.domain.garmin_activity import GarminActivity
 from training_sync.renderers.garmin_daily import render_training_activities
 
-
 DATE = "2026-07-03"
 
 

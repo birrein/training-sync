@@ -4,7 +4,9 @@ from base64 import b64encode
 import pytest
 
 from training_sync.intervals.client import (
-    IntervalsClient, IntervalsError, IntervalsNotFoundError, IntervalsUnsupportedUpdateError,
+    IntervalsClient,
+    IntervalsError,
+    IntervalsUnsupportedUpdateError,
 )
 
 

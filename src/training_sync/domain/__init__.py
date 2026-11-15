@@ -1,5 +1,19 @@
 """Pure training-sync domain objects."""
 
+from .exercise_catalog import ExerciseCatalog, ExerciseIdentity, ProviderBinding
+from .planned_workout import (
+    LoadSpec,
+    PlannedBlock,
+    PlannedExercise,
+    PlannedSet,
+    PlannedStep,
+    PlannedWorkout,
+    PlannedWorkoutValidationError,
+    TargetSpec,
+    Termination,
+    parse_planned_workout,
+    planned_workout_from_dict,
+)
 from .training import (
     CompletedActivity,
     EffortObservation,
@@ -17,49 +31,35 @@ from .training import (
     StrengthWorkoutImport,
     promote_verified_strength_import,
 )
-from .exercise_catalog import ExerciseCatalog, ExerciseIdentity, ProviderBinding
-from .planned_workout import (
-    LoadSpec,
-    PlannedBlock,
-    PlannedExercise,
-    PlannedSet,
-    PlannedStep,
-    PlannedWorkout,
-    PlannedWorkoutValidationError,
-    TargetSpec,
-    Termination,
-    parse_planned_workout,
-    planned_workout_from_dict,
-)
 
 __all__ = [
     "CompletedActivity",
-    "ExerciseCatalog",
-    "ExerciseIdentity",
     "EffortObservation",
     "EffortScope",
+    "ExerciseCatalog",
+    "ExerciseIdentity",
     "Load",
     "LoadKind",
+    "LoadSpec",
     "ParsedExercise",
     "ParsedSetLine",
     "ParsedTrainingDay",
-    "Provenance",
-    "ProviderBinding",
-    "LoadSpec",
     "PlannedBlock",
     "PlannedExercise",
     "PlannedSet",
     "PlannedStep",
     "PlannedWorkout",
     "PlannedWorkoutValidationError",
-    "TargetSpec",
-    "Termination",
-    "parse_planned_workout",
-    "planned_workout_from_dict",
+    "Provenance",
+    "ProviderBinding",
     "SourceArtifact",
     "StrengthExercise",
     "StrengthSet",
     "StrengthWorkout",
     "StrengthWorkoutImport",
+    "TargetSpec",
+    "Termination",
+    "parse_planned_workout",
+    "planned_workout_from_dict",
     "promote_verified_strength_import",
 ]

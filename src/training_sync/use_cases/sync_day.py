@@ -7,6 +7,7 @@ from typing import Any
 
 from training_sync.domain.activity_classification import classify_activity_type
 from training_sync.domain.garmin_activity import GarminActivity
+from training_sync.domain.reconciliation import SyncScope
 from training_sync.garmin.activity import decode_activity
 from training_sync.renderers.garmin_daily import render_training_activities
 from training_sync.renderers.weightxreps_text import (
@@ -27,8 +28,6 @@ from training_sync.vault.training_block import (
 from training_sync.weightxreps.exercise_mapping import ExerciseMapping
 from training_sync.weightxreps.exercise_resolution import resolve_exercise_ids
 from training_sync.weightxreps.jeditor import build_jeditor_rows
-from training_sync.domain.reconciliation import SyncScope
-
 
 # The legacy command is deliberately not the "all configured" reconciliation.
 SYNC_DAY_DEFAULT_SCOPE = SyncScope.targets(("vault", "weightxreps"))

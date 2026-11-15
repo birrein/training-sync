@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Mapping
-
+from collections.abc import Mapping
+from typing import Any
 
 _MAX_REFERENCE_LENGTH = 128
 _MAX_TYPE_LENGTH = 80

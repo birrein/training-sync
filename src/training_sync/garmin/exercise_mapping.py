@@ -1,9 +1,9 @@
 """
 Exercise mapping for translating imported exercise names to Garmin categories.
 """
-import os
 import json
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ def load_garmin_dict() -> dict:
     try:
         with open(dict_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            for k, v in data.items():
+            for v in data.values():
                 if v.get('name') == v.get('category'):
                     v['name'] = None
             return data

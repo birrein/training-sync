@@ -6,7 +6,7 @@ import sys
 def test_cli_starts_on_the_running_python_version():
     result = subprocess.run(
         [sys.executable, "-c", "from training_sync.cli import main; main()", "--help"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, check=False,
     )
     assert result.returncode == 0, result.stderr
     assert "garmin" in result.stdout

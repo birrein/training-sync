@@ -1,6 +1,8 @@
 """Deterministic Intervals replica matching; ambiguity is never a deletion signal."""
 from dataclasses import dataclass
+
 from training_sync.intervals.client import IntervalsActivity
+
 
 @dataclass(frozen=True)
 class MatchResult:

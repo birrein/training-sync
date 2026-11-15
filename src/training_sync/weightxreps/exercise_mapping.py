@@ -1,12 +1,12 @@
 """Local Weight x Reps exercise mapping."""
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import json
-from pathlib import Path
 import re
 import shutil
 import tomllib
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
 
 from training_sync.domain.exercise_catalog import (
     ExerciseCatalog,
@@ -223,7 +223,7 @@ def _backup_if_exists(path: Path) -> None:
     if not path.exists():
         return
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S%f")
     backup_path = path.with_name(f"{path.name}.{timestamp}.bak")
     shutil.copy2(path, backup_path)
     backup_path.chmod(0o600)

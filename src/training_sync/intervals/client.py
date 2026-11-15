@@ -4,8 +4,8 @@ All network access is injected through ``session`` so unit tests never contact
 Intervals.  Mutation callers must still use the reconciliation preview/apply
 flow; this module only implements provider capabilities.
 """
-from dataclasses import dataclass
 from base64 import b64encode
+from dataclasses import dataclass
 from hashlib import sha256
 from typing import Any, BinaryIO
 

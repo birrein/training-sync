@@ -4,10 +4,10 @@ These values deliberately carry only stable cross-provider concepts.  Provider
 payloads and dense telemetry stay in their adapters or ``SourceArtifact``.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
-from typing import Mapping
 
 
 class LoadKind(StrEnum):

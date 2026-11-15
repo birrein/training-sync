@@ -2,8 +2,10 @@
 
 from pathlib import Path
 
+from training_sync.use_cases.weightxreps_preview import (
+    preview_weightxreps_day_from_vault,
+)
 from training_sync.weightxreps.exercise_mapping import ExerciseMapping
-from training_sync.use_cases.weightxreps_preview import preview_weightxreps_day_from_vault
 
 
 def push_weightxreps_day(

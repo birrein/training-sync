@@ -1,5 +1,13 @@
-from training_sync.domain.reconciliation import OperationKind, SyncScope, TargetResultState
-from training_sync.use_cases.activity_reconciliation import apply_plan, build_plan, plan_provider_local_edit
+from training_sync.domain.reconciliation import (
+    OperationKind,
+    SyncScope,
+    TargetResultState,
+)
+from training_sync.use_cases.activity_reconciliation import (
+    apply_plan,
+    build_plan,
+    plan_provider_local_edit,
+)
 
 
 class Adapter:

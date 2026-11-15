@@ -1,5 +1,6 @@
 from training_sync import config
 
+
 def test_intervals_key_reads_env_without_exposing_it(monkeypatch):
     monkeypatch.setenv("INTERVALS_API_KEY", "secret")
     assert config.load_intervals_api_key() == "secret"

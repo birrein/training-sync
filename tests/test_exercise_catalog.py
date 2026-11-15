@@ -5,7 +5,10 @@ from training_sync.domain.exercise_catalog import (
     ExerciseIdentity,
     ProviderBinding,
 )
-from training_sync.weightxreps.exercise_mapping import load_exercise_catalog, save_exercise_catalog
+from training_sync.weightxreps.exercise_mapping import (
+    load_exercise_catalog,
+    save_exercise_catalog,
+)
 
 
 def test_catalog_uses_stable_key_and_resolves_alias_and_provider_binding():

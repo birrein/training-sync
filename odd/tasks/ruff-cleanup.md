@@ -16,8 +16,8 @@ Status: implementation and independent runtime verification pass; authorized wor
 - **T1 — done** [S1–S2]: Apply approved Ruff adjustments and regression tests; route: bounded writer plus parent readback; commit: uncommitted.
 - **T2 — done** [S3–S4]: Record the scope, rationale and observed evidence here; route: parent documentation; commit: uncommitted.
 - **T3 — done** [S1, S4]: Diagnosed and repaired verifier scratch preparation; independently checked the candidate; route: read-only verifier; commit: not applicable. Risk: item 3 — shared normalization and consumed exception/recovery contracts.
-- **T4 — in_progress** [S5]: Commit the Ruff development dependency and maintenance record; route: parent Git-only delivery; commit: pending. Risk: item 5 — development dependency.
-- **T5 — pending** [S1–S2, S5]: Commit shared domain/adapter/CLI cleanup with its tests; route: parent Git-only delivery; commit: pending. Risk: item 3 — shared helpers.
+- **T4 — done** [S5]: Commit the Ruff development dependency and maintenance record; route: parent Git-only delivery; commit: `f18882b`. Risk: item 5 — development dependency.
+- **T5 — in_progress** [S1–S2, S5]: Commit shared domain/adapter/CLI cleanup with its tests; route: parent Git-only delivery; commit: pending. Risk: item 3 — shared helpers.
 - **T6 — pending** [S1–S5]: Commit provider workflow cleanup, recovery tests and final maintenance evidence; route: parent Git-only delivery; commit: pending. Risk: item 3 — provider recovery contracts.
 
 ## Log
